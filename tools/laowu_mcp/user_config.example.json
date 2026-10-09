@@ -1,49 +1,49 @@
 {
   "providers": {
     "route_a_group_1": {
-      "label": "",
+      "label": "路线 A 默认分组",
       "model": "",
       "key_name": "PROVIDER_A_GROUP_1_API_KEY",
       "model_provider": "provider_a_group_1",
       "base_url": ""
     },
     "route_a_group_2": {
-      "label": "",
+      "label": "路线 A 分组 2",
       "model": "",
       "key_name": "PROVIDER_A_GROUP_2_API_KEY",
       "model_provider": "provider_a_group_2",
       "base_url": ""
     },
     "route_a_group_3": {
-      "label": "",
+      "label": "路线 A 分组 3",
       "model": "",
       "key_name": "PROVIDER_A_GROUP_3_API_KEY",
       "model_provider": "provider_a_group_3",
       "base_url": ""
     },
     "route_a_group_4": {
-      "label": "",
+      "label": "路线 A 分组 4",
       "model": "",
       "key_name": "PROVIDER_A_GROUP_4_API_KEY",
       "model_provider": "provider_a_group_4",
       "base_url": ""
     },
     "route_b_group_1": {
-      "label": "",
+      "label": "路线 B 默认分组",
       "model": "",
       "key_name": "PROVIDER_B_GROUP_1_API_KEY",
       "model_provider": "provider_b_group_1",
       "base_url": ""
     },
     "route_b_group_2": {
-      "label": "",
+      "label": "路线 B 分组 2",
       "model": "",
       "key_name": "PROVIDER_B_GROUP_2_API_KEY",
       "model_provider": "provider_b_group_2",
       "base_url": ""
     },
     "route_b_group_3": {
-      "label": "",
+      "label": "路线 B 分组 3",
       "model": "",
       "key_name": "PROVIDER_B_GROUP_3_API_KEY",
       "model_provider": "provider_b_group_3",

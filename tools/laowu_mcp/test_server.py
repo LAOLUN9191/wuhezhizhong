@@ -663,7 +663,7 @@ class ActivitySnapshotTests(unittest.TestCase):
         server.ACTIVITY_ORDER.append(legacy_id)
         self.assertEqual(server._activity_snapshot()["activities"][-1]["currentGroup"], "Legacy")
 
-    def test_snapshot_uses_configured_group_number_when_provider_label_is_empty(self):
+    def test_snapshot_uses_route_default_label_when_provider_label_is_empty(self):
         activity_id = server._new_activity("scout", {
             "task": "inspect", "cwd": "C:/work", "currentProviderId": "route_b_group_1",
         })
@@ -672,7 +672,7 @@ class ActivitySnapshotTests(unittest.TestCase):
             patch.dict(server.PROVIDER_ORDINALS, {"route_b_group_1": 7}),
         ):
             snapshot = server._activity_snapshot()
-        self.assertEqual(snapshot["activities"][0]["currentGroup"], "分组 7")
+        self.assertEqual(snapshot["activities"][0]["currentGroup"], "路线 B 默认分组")
 
     def test_retained_activity_preserves_valid_context_usage(self):
         activity_id = "d" * 32
