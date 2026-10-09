@@ -1,0 +1,30 @@
+# Local secrets and generated state
+AGENTS.md
+.codex/
+.superpowers/
+.probe*/
+**/user_config.json
+**/keys.xml
+**/ui_preferences.json
+__pycache__/
+*.py[cod]
+*.tmp
+.env
+.env.*
+.*dispatch-debug.jsonl*
+.*-subagent-data.json
+.laowu-state.json
+.test-*/
+.tester-*/
+.diagnostic-test-run-*/
+.release/
+
+docs/superpowers/
+
+# Internal review evidence and legacy temporary fixtures
+docs/reviews/
+.offline-test-*/
+.unittest-isolation-*/
+tmp*/
+.test-artifacts/
+tools/laowu_mcp/test-legacy-state-*/

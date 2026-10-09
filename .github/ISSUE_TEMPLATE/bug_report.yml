@@ -1,0 +1,28 @@
+name: Bug report / 问题反馈
+description: Report a reproducible problem without secrets or private data.
+body:
+  - type: markdown
+    attributes:
+      value: |
+        漏洞请按 SECURITY.md 私密报告。不要上传 API key、keys.xml、auth.json、完整配置、私有代码或未脱敏日志。
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment / 环境
+      description: Windows、Python、Node、Codex CLI、宿主版本，以及项目 commit。只提供 provider 类型和模型 ID，不填写私有地址或密钥。
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce / 复现步骤
+      description: 使用公开或合成示例，说明从哪一步开始出错。
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Expected and actual behavior / 预期与实际表现
+      description: 附上已脱敏的最小错误信息。截图前遮住私人内容。
+    validations:
+      required: true

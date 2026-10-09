@@ -1,0 +1,92 @@
+{
+  "providers": {
+    "route_a_group_1": {
+      "label": "",
+      "model": "",
+      "key_name": "PROVIDER_A_GROUP_1_API_KEY",
+      "model_provider": "provider_a_group_1",
+      "base_url": ""
+    },
+    "route_a_group_2": {
+      "label": "",
+      "model": "",
+      "key_name": "PROVIDER_A_GROUP_2_API_KEY",
+      "model_provider": "provider_a_group_2",
+      "base_url": ""
+    },
+    "route_a_group_3": {
+      "label": "",
+      "model": "",
+      "key_name": "PROVIDER_A_GROUP_3_API_KEY",
+      "model_provider": "provider_a_group_3",
+      "base_url": ""
+    },
+    "route_a_group_4": {
+      "label": "",
+      "model": "",
+      "key_name": "PROVIDER_A_GROUP_4_API_KEY",
+      "model_provider": "provider_a_group_4",
+      "base_url": ""
+    },
+    "route_b_group_1": {
+      "label": "",
+      "model": "",
+      "key_name": "PROVIDER_B_GROUP_1_API_KEY",
+      "model_provider": "provider_b_group_1",
+      "base_url": ""
+    },
+    "route_b_group_2": {
+      "label": "",
+      "model": "",
+      "key_name": "PROVIDER_B_GROUP_2_API_KEY",
+      "model_provider": "provider_b_group_2",
+      "base_url": ""
+    },
+    "route_b_group_3": {
+      "label": "",
+      "model": "",
+      "key_name": "PROVIDER_B_GROUP_3_API_KEY",
+      "model_provider": "provider_b_group_3",
+      "base_url": ""
+    }
+  },
+  "routes": [
+    {
+      "id": "route_a",
+      "native_codex_fallback": false,
+      "name": "路线 A",
+      "enabled": true,
+      "groups": [
+        {
+          "provider_id": "route_a_group_1",
+          "auto": true,
+          "enabled": true
+        }
+      ],
+      "auto_mode": "sequential"
+    },
+    {
+      "id": "route_b",
+      "native_codex_fallback": false,
+      "name": "路线 B",
+      "enabled": true,
+      "groups": [
+        {
+          "provider_id": "route_b_group_1",
+          "auto": true,
+          "enabled": true
+        }
+      ],
+      "auto_mode": "sequential"
+    }
+  ],
+  "paths": {
+    "workspace": "../..",
+    "diagnostic_log": "../../.laowu-dispatch-debug.jsonl",
+    "key_setup": "set-provider-keys.ps1",
+    "credential_store": "keys.xml",
+    "ui": "../../laowu-sidebar.html",
+    "state": "../../.laowu-state.json",
+    "ui_preferences": "ui_preferences.json"
+  }
+}
