@@ -12,5 +12,6 @@
 - 增加快速上手、贡献指南、兼容性与验收记录、GitHub Windows CI 和反馈模板。
 - 文件替换遇到短暂权限锁时最多尝试四次；重置回滚持续失败时明确报错、保留恢复副本，并阻止后续状态写入。
 - 公开文本统一使用 LF 行尾，保证源码包与不同 Windows Git 配置之间的一致性。
+- 修复隔离测试环境丢失 GitHub Windows 镜像预热 PowerShell 模块缓存路径的问题；新增缓存保留与自定义模块隔离检查。
 
-已知限制及实测状态见 [兼容性说明](docs/compatibility.md)。真实 Codex 宿主、外部 provider 与云端 CI 尚待本次公开候选验收。
+已知限制及实测状态见 [兼容性说明](docs/compatibility.md)。Windows/Python 3.11–3.13 云端离线 CI 已通过；真实 Codex 宿主和外部 provider 尚待本次公开候选验收。

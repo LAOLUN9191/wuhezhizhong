@@ -179,7 +179,7 @@ Set-Location C:\path\to\AAA\tools\laowu_mcp
 
 ## 贡献
 
-- 普通问题可通过 GitHub Issues 反馈，并提供复现步骤、预期结果和实际结果；Issue 与评论是公开的。漏洞细节、利用步骤、凭据和私有数据不要发到公开 Issue、PR 或讨论区。GitHub 仓库公开前应启用 Private vulnerability reporting；启用后请使用 Security 页面中的“Report a vulnerability”私密表单。若看不到该入口，只开一个不含漏洞细节的 Issue，请求维护者提供私密联系渠道。更多说明见 [安全政策](SECURITY.md)。私密入口的实际配置状态见 [发布验收表](docs/acceptance.md)。
+- 普通问题可通过 GitHub Issues 反馈，并提供复现步骤、预期结果和实际结果；Issue 与评论是公开的。漏洞细节、利用步骤、凭据和私有数据不要发到公开 Issue、PR 或讨论区。GitHub 仓库转为公开时应启用 Private vulnerability reporting；启用后请使用 Security 页面中的“Report a vulnerability”私密表单。若看不到该入口，只开一个不含漏洞细节的 Issue，请求维护者提供私密联系渠道。更多说明见 [安全政策](SECURITY.md)。私密入口的实际配置状态见 [发布验收表](docs/acceptance.md)。
 - 提交 PR 前，请说明改动目的和影响范围，并运行相关离线测试：`python -B tools/run_tests.py`。PR 应附上实际运行的命令和结果；不要把未运行的测试写成通过。
 - 涉及 Codex 宿主、MCP App、Codex CLI 或外部 provider 的改动，还需在目标 Codex 宿主和 provider 环境中核验，并在 PR 中说明具体环境、步骤和结果。离线测试只覆盖本地模拟和回归检查，不代表真实 Codex/provider 集成已通过。
 

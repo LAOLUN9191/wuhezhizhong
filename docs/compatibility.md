@@ -7,7 +7,7 @@
 | 项目 | 当前状态 | 说明 |
 |---|---|---|
 | Windows / Python 3.12.10 / Node 24.14.1 | 本地离线检查环境 | 测试隔离真实配置与凭据，实际计数见维护者本轮验证记录 |
-| Windows / Python 3.11、3.12、3.13 / Node 24 | CI 已配置，云端待运行 | 工作流包括离线测试和按 HEAD 构建源码包 |
+| Windows / Python 3.11、3.12、3.13 / Node 24 | 云端离线检查通过 | 2026-10-09 三组各通过 254 项测试及按 HEAD 构建源码包；[运行记录](https://github.com/LAOLUN9191/wuhezhizhong/actions/runs/37878612733)，私有阶段需仓库访问权限 |
 | macOS / Linux | 不支持承诺 | 凭据 helper 使用 Windows 当前用户加密 |
 | Codex stdio MCP | 有模拟回归，真实宿主待验证 | 离线 stdio 测试模拟 provider，不等同实际外部任务 |
 | Codex MCP Apps 面板 | 实际宿主待验证 | 必须分别记录桌面宿主版本与面板操作结果 |

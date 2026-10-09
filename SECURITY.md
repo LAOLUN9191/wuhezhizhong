@@ -4,7 +4,7 @@
 
 Do not post vulnerability details, exploit steps, affected private code, credentials, or sensitive logs in public Issues, pull requests, or discussions. Those conversations are public.
 
-Before publishing this repository, maintainers should enable GitHub **Private vulnerability reporting** in the repository's Security settings. When enabled, use **Report a vulnerability** on the Security page to send details privately to the maintainers.
+GitHub **Private vulnerability reporting** is available for public repositories. During private preparation this feature may be unavailable. When making this repository public, maintainers should enable it in the repository's Security settings and verify it before announcing a release. When enabled, use **Report a vulnerability** on the Security page to send details privately to the maintainers. See [GitHub's availability documentation](https://docs.github.com/en/code-security/concepts/vulnerability-reporting-and-management/repository-security-advisories).
 
 If the private reporting button is unavailable, open an Issue containing no vulnerability details and ask the maintainers for a private contact method. Share sensitive details only after a private channel is available.
 
