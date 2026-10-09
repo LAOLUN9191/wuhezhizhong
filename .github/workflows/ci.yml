@@ -27,37 +27,6 @@ jobs:
         with:
           node-version: '24'
       - name: Run isolated offline suites
-        run: python -B tools/run_tests.py
+        run: python -B tools/run_tests.py -v
       - name: Check committed release inputs
         run: python -B tools/build_release.py --ref HEAD --output .release/ci-source.zip
-
-  diagnose:
-    runs-on: windows-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          persist-credentials: false
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
-        with:
-          python-version: '3.12'
-      - name: Locate required Windows startup environment
-        shell: python
-        run: |
-          import os, subprocess, sys, tempfile
-          sys.path.insert(0, "tools")
-          from run_tests import _safe_test_environment
-          groups = {
-              'profile': {'USERPROFILE','APPDATA','LOCALAPPDATA','HOMEDRIVE','HOMEPATH','USERNAME','USERDOMAIN','COMPUTERNAME'},
-              'machine': {'PROGRAMFILES','PROGRAMFILES(X86)','PROGRAMW6432','COMMONPROGRAMFILES','COMMONPROGRAMFILES(X86)','COMMONPROGRAMW6432','PROGRAMDATA','SYSTEMDRIVE','PROCESSOR_ARCHITECTURE','PROCESSOR_ARCHITEW6432','NUMBER_OF_PROCESSORS','OS'},
-              'powershell': {'PSMODULEPATH','PSEXECUTIONPOLICYPREFERENCE','PSMODULEANALYSISCACHEPATH','POWERSHELL_TELEMETRY_OPTOUT','POWERSHELL_DISTRIBUTION_CHANNEL'},
-          }
-          with tempfile.TemporaryDirectory(prefix='.test-ci-startup-', dir='.') as folder:
-              base = {**_safe_test_environment(os.environ), 'TEMP': os.path.abspath(folder), 'TMP': os.path.abspath(folder)}
-              for label, keys in [('baseline',set()), *groups.items(), ('profile+machine',groups['profile']|groups['machine']), ('all-known',set.union(*groups.values()))]:
-                  env = {**base, **{k:v for k,v in os.environ.items() if k.upper() in keys}}
-                  try:
-                      r=subprocess.run(['powershell.exe','-NoProfile','-NonInteractive','-Command',"Write-Output 'startup'"], env=env, input='', capture_output=True,text=True,timeout=6)
-                      print(label, 'exit',r.returncode,'checkpoint',repr(r.stdout),'stderr',repr(r.stderr[:300]),flush=True)
-                  except subprocess.TimeoutExpired as error:
-                      print(label,'timed out','checkpoint',repr(error.stdout),flush=True)

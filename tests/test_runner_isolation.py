@@ -9,6 +9,14 @@ SPEC.loader.exec_module(RUNNER)
 
 
 class TestRunnerIsolationTests(unittest.TestCase):
+    def test_keeps_powershell_startup_cache_without_inheriting_user_modules(self):
+        safe = RUNNER._safe_test_environment({
+            "PSModuleAnalysisCachePath": "fixture-system-module-cache",
+            "PSModulePath": "private-user-modules",
+            "OPENAI_API_KEY": "synthetic-secret",
+        })
+        self.assertEqual(safe, {"PSModuleAnalysisCachePath": "fixture-system-module-cache"})
+
     def test_child_environment_drops_credentials_and_user_configuration(self):
         inherited = {
             "PATH": "fixture-path", "PATHEXT": ".EXE", "SystemRoot": "C:\\Windows",

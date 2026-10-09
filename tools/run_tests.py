@@ -13,7 +13,9 @@ from unittest.mock import patch
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SUITES = {"mcp": PROJECT_ROOT / "tools" / "laowu_mcp", "tests": PROJECT_ROOT / "tests"}
-TEST_ENVIRONMENT_KEYS = {"PATH", "PATHEXT", "SYSTEMROOT", "WINDIR", "COMSPEC"}
+# Hosted Windows images prewarm this system module cache; dropping its path can
+# make PowerShell startup exceed helper timeouts. User modules and secrets stay out.
+TEST_ENVIRONMENT_KEYS = {"PATH", "PATHEXT", "SYSTEMROOT", "WINDIR", "COMSPEC", "PSMODULEANALYSISCACHEPATH"}
 
 
 def _safe_test_environment(source):
