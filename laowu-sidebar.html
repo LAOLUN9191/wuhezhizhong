@@ -84,6 +84,7 @@ body{font-size:calc(13px * var(--font-scale,1))}
 .group-builder{align-items:center;flex-wrap:wrap}.group-add-controls{display:flex;flex:1;min-width:min(100%,220px);gap:6px}.group-add-controls select{min-width:0}.native-codex-fallback{display:flex;align-items:center;gap:5px;flex:none;color:var(--text-secondary);font-size:calc(var(--font-scale,1) * 11px);white-space:nowrap}.native-codex-fallback input{accent-color:var(--button-text,var(--text))}.permission-inline-note{grid-column:1/-1;color:var(--muted);font-size:calc(var(--font-scale,1) * 10px)}
 .platform-card.route-drop-target{outline:2px dashed var(--button-text,var(--text));outline-offset:2px}
 @media(max-width:700px){.appearance-preferences{grid-template-columns:minmax(0,1fr);row-gap:3px}.appearance-preferences .permission-control{grid-column:1;grid-row:1}.appearance-preferences #codex-permission-status{grid-column:1;grid-row:2}.appearance-card .theme-control-wrap{grid-column:1;grid-row:3;justify-items:start}.platform-head{flex-wrap:wrap}.route-head-actions{flex-wrap:wrap}.route-mode-row{align-items:flex-start;flex-direction:column}}
+.appearance-control select{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text);font:inherit}
 </style>
 </head>
 <body>
@@ -97,6 +98,103 @@ body{font-size:calc(13px * var(--font-scale,1))}
 </div>
 <script>
 (() => {
+  const LANGUAGE_KEY = "laowu-language";
+  const UI_COPY = Object.freeze({
+    "乌合之众":"Wu He Zhi Zhong","本机任务记录":"Local task history","代理任务":"Agent tasks","子代理任务":"Subagent tasks",
+    "正在连接乌合之众":"Connecting to Wu He Zhi Zhong","本机保留的任务记录会在这里显示":"Locally retained task records appear here",
+    "活动":"Activity","子代理":"Subagents","子代理配置":"Subagent profiles","设置":"Settings","连接中…":"Connecting…","未连接":"Disconnected","刷新":"Refresh","刷新活动":"Refresh activity","刷新配置":"Refresh settings","刷新子代理":"Refresh subagents","发起任务":"Launch task","收起":"Collapse","展开":"Expand","收起会话列表":"Collapse task list","展开会话列表":"Expand task list","展开列表":"Expand list",
+    "正在读取本地配置…":"Loading local configuration…","正在读取子代理配置…":"Loading subagent settings…","还没有代理任务":"No agent tasks yet","还没有可复用配置":"No reusable profiles yet","没有可显示的路线":"No routes to display","敬待号令":"Ready when you are","暂时无法读取活动":"Unable to load activity","暂无活动事件":"No activity events yet","任务开始后，工具调用和代理回复会显示在这里":"Tool calls and agent replies will appear here once the task starts",
+    "设置仅控制 Codex 发起；手动发起仍可用。":"This setting only controls Codex launches. Manual launches remain available.","外观、布局、凭据与本机数据":"Appearance, layout, credentials, and local data","外观与布局":"Appearance and layout","字体大小":"Font size","左侧任务栏宽度":"Task list width","界面语言":"Interface language","主题与配色":"Theme and colors","跟随 Codex":"Follow Codex","跟随 Codex 外观":"Follow Codex appearance","跟随系统":"Follow system","跟随系统明暗主题":"Follow system light and dark mode","浅色":"Light","深色":"Dark","界面动效":"Interface animations","淡入滑动、点击反馈、指针粒子":"Fade and slide, click feedback, and cursor particles",
+    "清理与删除":"Clear and delete","清理本机数据":"Clear local data","清理本机数据会删除密钥、路线与分组、面板偏好、自定义子代理和任务记录，并恢复程序默认配置。":"Clearing local data deletes keys, routes and groups, panel preferences, custom subagents, and task records, then restores the default configuration.","确认清理并恢复默认？":"Clear data and restore defaults?","将删除本机密钥、路线与分组设置、主题字号、列表折叠状态、主控复调用默认值、自定义子代理、Codex 发起权限、任务历史、待交付结果和诊断日志，并恢复程序默认配置。正在运行的子代理任务需先停止。":"This will delete local keys, routes and groups, appearance preferences, list state, master recall defaults, custom subagents, Codex launch permissions, task history, pending results, and diagnostic logs, then restore defaults. Running tasks must be stopped first.","取消":"Cancel","不再显示":"Dismiss",
+    "密钥保存在本机加密存储中。":"Keys are stored locally with encryption.","输入框默认遮住当前密钥；点眼睛即可显示并编辑，保存后仍会加密保存在本机。":"Keys are masked by default. Select the eye to view or edit a key; saved keys remain encrypted on this device.","密钥保存在本机加密存储中；保存后可立即用于任务，重启后仍会保留。":"Keys are stored locally with encryption and are available to tasks after saving, including after a restart.","查看完整结果":"View full result","停止任务":"Stop task","正在停止…":"Stopping…","重试停止":"Retry stop","保留":"Retain","已保留":"Retained","删除":"Delete","删除失败":"Delete failed","确认删除":"Confirm delete","已完成":"Completed","失败":"Failed","已停止":"Stopped","已中断":"Interrupted","运行中":"Running","准备中":"Preparing","已完成：":"Completed: ","失败：":"Failed: ","运行中：":"Running: ","已停止：":"Stopped: ","已中断：":"Interrupted: ","准备中：":"Preparing: ","等待 Codex 响应超时，请稍后重试。":"Timed out waiting for Codex. Try again later.","暂无活动事件":"No activity events yet","代理活动":"Agent activity","任务":"Task","回复":"Reply","工具调用":"Tool call","工具调用失败":"Tool call failed","进度":"Progress","状态":"Status","结束":"Finished","完整结果":"Full result","用户 调用":"User call","Codex 调用":"Codex call","补充指令":"Additional instructions","回答":"Answer","显示密钥":"Show key","隐藏密钥":"Hide key","显示模式":"Display mode","显示密钥":"Show key","展开详情":"Expand details","收起详情":"Collapse details",
+    "子代理":"Subagents","勘察员":"Scout","审查员":"Reviewer","验证员":"Tester","编码员":"Coder","自由者":"Generalist","内置角色":"Built-in roles","查看内置角色用途，管理可复用配置和路线分组":"Review built-in roles and manage reusable profiles and route groups","发起子代理":"Launch a subagent","选择角色和任务；可为子代理固定路线分组":"Choose a role and task; optionally pin the subagent to a route group","子代理配置":"Subagent profiles","选择角色或配置…":"Choose a role or profile…","选择路线…":"Choose a route…","请先选择路线…":"Select a route first…","分组":"Group","请先选择分组…":"Select a group first…","任务":"Task","描述这次要完成的任务…":"Describe the task to complete…","允许主控复调用":"Allow master follow-up","新任务允许主控复调用":"Allow master follow-up for new tasks","勾选后，主控会按原任务目标检查结果；若未完成，可在同一会话提出具体修改并续聊。":"When enabled, the main controller checks results against the original goal and can request specific changes in the same session.","保存为可复用配置":"Save as reusable profile","配置名称":"Profile name","可复用指令":"Reusable instructions","可复用的工作边界和指令":"Reusable work boundaries and instructions","写下这个子代理长期使用的工作边界和专属指令…":"Describe this subagent's ongoing work boundaries and instructions…","允许 Codex 调用此配置":"Allow Codex to use this profile","允许外部 MCP 工具":"Allow external MCP tools","允许 Skills":"Allow skills","返回配置":"Back to profiles","发起":"Launch","取消":"Cancel","新建配置":"Create profile","新建子代理配置":"Create subagent profile","配置":"Profile","角色":"Role","编辑":"Edit","用此配置发起":"Launch with this profile","保存配置":"Save profile","保存并发上限失败":"Failed to save concurrency limit","并发设置保存结果无效":"Invalid concurrency settings response","同时运行代理数":"Concurrent agents","新任务最多同时运行 ":"New tasks can run up to "," 个代理":" agents at once","默认":"Default","手动分组":"Manual group","单组":"Single group","顺序":"Sequential","Auto 顺序 · ":"Auto order · ","Auto 单组 · ":"Auto single group · "," 结果已显示，但清理失败：":" Result displayed, but cleanup failed: ","原生子代理（直接运行）":"Native subagent (direct)","原生子代理（分组重试耗尽后）":"Native subagent (after provider retries)","控制 Codex 是否可通过本服务发起或续聊子代理；Codex 原生子代理不受影响，也可从此面板手动发起任务。":"Control whether Codex can launch or continue subagents through this service. Native Codex subagents are unaffected; tasks can still be launched manually from this panel.","已允许 Codex 发起子代理。":"Codex can now launch subagents.","已禁止 Codex 发起和续聊子代理；已运行任务仍可停止。":"Codex can no longer launch or continue subagents. Running tasks can still be stopped.","取消勾选后，Codex 不能通过本服务发起或续聊子代理；Codex 原生子代理不受影响，也可从此面板手动发起任务。":"When disabled, Codex cannot launch or continue subagents through this service. Native Codex subagents are unaffected; tasks can still be launched manually from this panel.","允许 Codex 发起子代理":"Allow Codex to launch subagents",
+    "增加路线":"Add route","保存路线设置":"Save route settings","路线名称":"Route name","启用路线":"Enable route","删除路线":"Delete route","Auto":"Auto","按顺序尝试分组":"Try groups in order","仅使用第一个启用分组":"Use only the first enabled group","启用分组":"Enable group","参与 Auto":"Include in Auto","分组名称":"Group name","未命名分组":"Unnamed group","上移":"Move up","下移":"Move down","移出路线":"Remove from route","拖动到本路线或其他路线":"Drag within or between routes","拖动分组到任意路线":"Drag group to any route","请求模型":"Request model","输入或查询模型 ID":"Enter or look up a model ID","查询可用模型":"Find available models","API 地址":"API URL","输入密钥":"Enter API key","保存分组":"Save group","保存中…":"Saving…","正在保存分组…":"Saving group…","正在保存路线…":"Saving route…","添加分组":"Add group","正在添加…":"Adding…","新分组已创建；填写模型、API 地址和密钥后保存。":"Group created. Enter a model, API URL, and key, then save.","新增分组失败":"Failed to add group","保存失败":"Save failed","保存失败：":"Save failed: ","分组已保存。":"Group saved.","分组和密钥已保存。":"Group and key saved.","分组已保存，正在加密保存密钥…":"Group saved. Encrypting and saving key…","分组已保存，但密钥保存失败":"Group saved, but the key could not be saved.","分组已保存；新输入的密钥尚未保存。":"Group saved; the newly entered key was not saved.","已保存本次密钥；新输入的密钥尚未保存。":"This key was saved; the newly entered key was not saved.","已保存之前的版本；新改动尚未保存。":"The previous version was saved; newer changes remain unsaved.","选择已更改，正在自动保存…":"Selection changed. Saving automatically…","正在自动保存路线设置…":"Saving route settings automatically…","路线设置已保存。":"Route settings saved.","路线设置已自动保存。":"Route settings saved automatically.","路线设置上次保存失败，请先在设置页成功保存后再发起任务。":"The last route settings save failed. Save settings successfully before launching a task.","路线设置还有未保存的修改，请先保存路线设置再发起任务。":"Route settings contain unsaved changes. Save them before launching a task.","存在未保存的路线草稿；刷新已取消，请先保存路线设置。":"Unsaved route changes exist; refresh was cancelled. Save route settings first.","自动保存失败；刷新已取消，路线草稿已保留。请修复问题后重试保存。":"Automatic save failed; refresh was cancelled and route changes were kept. Fix the issue and try saving again.","分组位置已调整，点击“保存路线设置”后生效。":"Group order changed. Select “Save route settings” to apply it.","路线设置自动保存失败，请检查设置页提示后重试。":"Automatic route save failed. Check the settings message and try again.","设置仅控制 Codex 发起；手动发起仍可用。":"This setting only controls Codex launches. Manual launches remain available.","密钥保存失败":"Failed to save key","读取密钥失败":"Failed to read key","读取密钥失败：":"Failed to read key: ","查询失败：":"Lookup failed: ","查询暂时失败：":"Lookup temporarily failed: ","新增分组失败：":"Failed to add group: ","外观设置未保存到服务端：":"Appearance preference could not be saved on the server: ","服务端外观设置读取失败，已保留本机偏好：":"Could not read appearance settings from the server; kept local preferences: ","读取失败：":"Failed to load: ","保留记录存储异常：":"Retained-record storage error: ","API 地址有未保存修改；请先点击“保存分组”再查询模型。":"The API URL has unsaved changes. Select “Save group” before looking up models.","请先保存分组中的 API 地址，再查询模型。":"Save the group's API URL before looking up models.","请先填写 API 地址。":"Enter an API URL first.","站点没有返回可用模型 ID。":"The provider returned no usable model IDs.","查询到 ":"Found "," 个模型；点击模型框可选择。":" models. Select one from the model field.","正在请求模型列表…":"Requesting model list…","正在查询…":"Looking up…","正在重试查询（":"Retrying lookup (","/3）…": "/3)…","读取完整结果失败":"Failed to load full result","读取完整结果":"Loading full result","结果分页游标无效":"Invalid result page cursor","结果在读取期间发生变化，请重新读取":"The result changed while being read. Read it again.","服务端未返回 activity_id，无法跟踪任务；请查看活动列表确认任务是否已启动。":"The server returned no activity_id, so the task cannot be tracked. Check the activity list to see whether it started.","任务已排队，等待执行…":"Task queued and waiting to run…","任务正在执行…":"Task is running…","正在发起…":"Launching…","正在保存…":"Saving changes…","正在处理…":"Working…","保存配置时请填写名称和可复用指令。":"Enter a name and reusable instructions before saving.","没有可用的子代理配置。":"No subagent profiles are available.","所有路线都已关闭，请先在设置页启用一条路线。":"All routes are disabled. Enable a route in Settings first.","所选路线已关闭，请重新选择。":"The selected route is disabled. Choose another route.","所选分组已停用或已移除。":"The selected group is disabled or has been removed.","此子代理固定的路线或分组已停用，请在子代理配置中改为“默认”或选择启用的分组。":"The route or group pinned to this subagent is disabled. Set it to “Default” or choose an enabled group in subagent settings.","已固定路线或分组已关闭，请重新选择或恢复默认。":"The pinned route or group is disabled. Choose another or restore the default.","多条路线已启用，请选择路线和分组。":"Multiple routes are enabled. Choose a route and group.","请先选择一条启用的路线。":"Choose an enabled route first.","请选择分组。":"Choose a group.","路线数据尚未加载完成。":"Route data is still loading.","本地路线仍在读取，请稍候。":"Routes are still loading. Please wait.","本地路线数据读取失败":"Failed to read local routes","服务器返回的路线数据无效。":"The server returned invalid route data.","服务器返回的路线快照无效；请刷新配置后重试。":"The server returned an invalid route snapshot. Refresh settings and try again.","子代理配置格式无效":"Invalid subagent profile data","调用权限数据格式无效":"Invalid launch permission data","配置存储不可用：":"Profile storage unavailable: ","工具响应未包含面板专用的密钥字段；这不代表密钥未保存。":"The tool response did not include a panel-specific key field; this does not mean the key was not saved.","新路线":"New route","尚未添加分组":"No groups added yet","最多可以设置 12 条路线。":"You can configure up to 12 routes.","删除分组":"Delete group","移出路线":"Remove from route","该路线分组已全部停用…":"All groups on this route are disabled…","请先为该路线添加分组…":"Add a group to this route first…","请先选择路线…":"Select a route first…","该分组已从路线中移除。":"The group was removed from the route.","此移动会让启用路线没有参与 Auto 的分组；请先调整 Auto 选项。":"This move would leave an enabled route without an Auto group. Adjust Auto first.","目标路线已包含该分组，不能重复添加。":"The destination route already contains this group.","再次点击“确认删除分组”后，将同时删除此分组保存的本机密钥。":"Select “Confirm delete group” again to also delete this group's locally stored key.","再次点击后删除分组并清除本机加密密钥":"Select again to delete the group and clear its encrypted local key","确认删除分组":"Confirm delete group","恢复默认":"Restore defaults","恢复默认路线失败":"Failed to restore default routes","原生子代理":"Native subagent","设置仅控制 Codex 发起；手动发起仍可用。":"This setting only controls Codex launches. Manual launches remain available.","跟随 Codex · ":"Follow Codex · ","已同步 Codex 配色，明暗模式跟随系统":"Codex colors synced; light and dark mode follow the system","Codex 暂未提供主题数据，当前明暗模式跟随系统":"Codex has not provided theme data; light and dark mode follow the system","Codex 暂未提供主题数据":"Codex has not provided theme data","已同步 Codex ":"Synced with Codex ","主题":"theme","配色":"colors","明暗模式跟随系统":"light and dark mode follow the system","使用固定":"Using fixed ","固定深色主题":"Fixed dark theme","固定浅色主题":"Fixed light theme","跟随系统明暗主题":"Follow system light and dark mode",
+    "页面":"Page","路线":"Route","详情":"Details","Codex 没有响应":"Codex did not respond","上移 ":"Move up ","下移 ":"Move down "," · 勘察员":" · Scout"," · 审查员":" · Reviewer"," · 验证员":" · Tester"," · 编码员":" · Coder"," · 自由者":" · Generalist"," · 已保存":" · Saved","（仅此分组）":" (this group only)","描述这次要完成的任务…":"Describe the task to complete…","输入或查询模型 ID":"Enter or look up a model ID","勘察代码库：查找相关文件和代码入口，梳理现有行为与约定，帮助主控快速了解项目。":"Scout the codebase: find relevant files and entry points, map current behavior and conventions, and help the main controller get oriented.","审查改动：检查正确性、安全性和回归风险，找出遗漏并按严重程度报告。":"Review changes: check correctness, security, and regression risks; identify gaps and report them by severity.","验证功能：运行相关测试或检查，复现问题并报告准确命令和结果；不修改产品代码。":"Verify behavior: run relevant tests or checks, reproduce issues, and report exact commands and results without changing product code.","实现需求：按任务边界修改文件，完成指定功能或修复，并汇报改动路径。":"Implement the request: change files within the task scope, complete the specified feature or fix, and report changed paths.","通用非代码工作：处理研究、整理、写作、分析及其他非代码任务；除非明确要求编程，否则不检查或修改源代码。":"General non-coding work: research, organize, write, analyze, and handle other non-coding tasks. Do not inspect or change source code unless explicitly asked to code.",
+    "选择路线分组…":"Choose a route group…","“默认”跟随设置页中的 Auto 路线；选择具体路线分组后，该角色或配置会固定使用此分组。":"“Default” follows the Auto route in Settings. Choosing a specific route group pins this role or profile to that group.","路线与分组开关、参与 Auto、Auto 模式和删除路线会自动保存；路线名称、分组增删和调用顺序仍需点“保存路线设置”。分组名称、模型和 API 地址由各组的“保存分组”按钮提交；新密钥可一并加密保存。":"Route and group toggles, Auto participation, Auto mode, and route deletion save automatically. Save route names, group changes, and order with “Save route settings.” Save group names, models, and API URLs with each group’s “Save group” button; new keys can be encrypted at the same time.",
+    "操作已完成。":"Operation completed.","请求失败":"Request failed","操作失败":"Operation failed","继续查询":"Continue polling","自动刷新中":"Auto-refreshing","已配置":"Configured","未配置":"Not configured","保存配置时请填写名称和可复用指令。":"Enter a name and reusable instructions before saving.","配置存储不可用：":"Profile storage unavailable: ","已固定路线或分组已关闭，请重新选择或恢复默认。":"The pinned route or group is disabled. Choose another or restore the default.","恢复默认路线失败":"Failed to restore default routes","工具调用失败":"Tool call failed","活动数据格式无效":"Invalid activity data","结果分页游标无效":"Invalid result page cursor","结果在读取期间发生变化，请重新读取":"The result changed while being read. Read it again.","无法识别任务状态“":"Unrecognized task status “","任务 ID：":"Task ID: ","服务端返回了无法识别的任务状态":"The server returned an unrecognized task status","服务端返回的路线快照无效；请刷新配置后重试。":"The server returned an invalid route snapshot. Refresh settings and retry.","服务器返回的路线数据无效。":"The server returned invalid route data.","本地路线数据读取失败":"Failed to read local routes","本地路线仍在读取，请稍候。":"Routes are still loading. Please wait.","路线数据尚未加载完成。":"Route data is still loading.","设置仅控制 Codex 发起；手动发起仍可用。":"This setting only controls Codex launches. Manual launches remain available.","保存中…":"Saving…","正在读取本地配置…":"Loading local configuration…","请先选择路线…":"Select a route first…","请先选择分组…":"Select a group first…","所有路线都已关闭，请先在设置页启用一条路线。":"All routes are disabled. Enable a route in Settings first.","固定使用：":"Pinned to: ","仅启用“":"Only “","”没有启用的分组，请选择其他路线或先在设置页启用分组。":"” has no enabled groups. Choose another route or enable a group in Settings.","已同步 Codex 深色主题":"Synced dark theme with Codex","已同步 Codex 浅色主题":"Synced light theme with Codex","已同步 Codex 深色主题与配色":"Synced dark theme and colors with Codex","已同步 Codex 浅色主题与配色":"Synced light theme and colors with Codex","已同步 Codex 配色，明暗模式跟随系统":"Codex colors synced; light and dark mode follow the system","Codex 暂未提供主题数据，当前明暗模式跟随系统":"Codex has not provided theme data; light and dark mode follow the system","跟随系统明暗主题":"Follow system light and dark mode","使用固定深色主题":"Using a fixed dark theme","使用固定浅色主题":"Using a fixed light theme","Auto 顺序 · ":"Auto order · ","Auto 单组 · ":"Auto single group · "
+  });
+  const UI_COPY_ZH = Object.freeze(Object.fromEntries(Object.entries(UI_COPY).map(([zh,en])=>[en,zh])));
+  function loadLanguage(storage) {
+    try { return storage.getItem(LANGUAGE_KEY)==="en"?"en":"zh-CN"; }
+    catch { return "zh-CN"; }
+  }
+  function saveLanguage(storage,value) {
+    const language=value==="en"?"en":"zh-CN";
+    try { storage.setItem(LANGUAGE_KEY,language); } catch {}
+    return language;
+  }
+  function translateUiText(text,language) {
+    const dictionary=language==="en"?UI_COPY:UI_COPY_ZH;
+    if(Object.prototype.hasOwnProperty.call(dictionary,text))return dictionary[text];
+    if(language==="en"){
+      let match=text.match(/^已保存；新任务最多同时运行 (\d+) 个代理。$/);
+      if(match)return `Saved. New tasks can run up to ${match[1]} agents at once.`;
+      match=text.match(/^仅启用“(.+?)”，请选择 Auto 或具体分组。$/);
+      if(match)return `Only “${match[1]}” is enabled. Choose Auto or a specific group.`;
+      match=text.match(/^“(.+?)”没有启用的分组，请选择其他路线或先在设置页启用分组。$/);
+      if(match)return `“${match[1]}” has no enabled groups. Choose another route or enable a group in Settings.`;
+      match=text.match(/^(\d+) 分 (\d+) 秒$/);
+      if(match)return `${match[1]}m ${match[2]}s`;
+      match=text.match(/^(\d+) 秒$/);
+      if(match)return `${match[1]}s`;
+    }else{
+      let match=text.match(/^Saved\. New tasks can run up to (\d+) agents at once\.$/);
+      if(match)return `已保存；新任务最多同时运行 ${match[1]} 个代理。`;
+      match=text.match(/^Only “(.+?)” is enabled\. Choose Auto or a specific group\.$/);
+      if(match)return `仅启用“${match[1]}”，请选择 Auto 或具体分组。`;
+      match=text.match(/^“(.+?)” has no enabled groups\. Choose another route or enable a group in Settings\.$/);
+      if(match)return `“${match[1]}”没有启用的分组，请选择其他路线或先在设置页启用分组。`;
+      match=text.match(/^(\d+)m (\d+)s$/);
+      if(match)return `${match[1]} 分 ${match[2]} 秒`;
+      match=text.match(/^(\d+)s$/);
+      if(match)return `${match[1]} 秒`;
+    }
+    for(const [source,target] of Object.entries(dictionary)){
+      if((source.endsWith("：")||source.endsWith(":")||source.endsWith(" · ")||source.endsWith(" "))&&text.startsWith(source))return target+text.slice(source.length);
+      if((source.startsWith("（")||source.startsWith("(")||source.startsWith(" "))&&text.endsWith(source))return text.slice(0,-source.length)+target;
+      if(source.startsWith(" · ")&&text.endsWith(source))return text.slice(0,-source.length)+target;
+    }
+    return text;
+  }
+  let uiLanguage="zh-CN";
+  try { uiLanguage=loadLanguage(localStorage); } catch {}
+  const unlocalizedContentSelector="script,style,textarea,.bubble,.task-short,.title,.profile-name,.user-copy,[data-user-copy]";
+  function applyLanguage(root=document.body,language=uiLanguage) {
+    if(document.documentElement.lang!==language)document.documentElement.lang=language;
+    const pageTitle=translateUiText("乌合之众",language);
+    if(document.title!==pageTitle)document.title=pageTitle;
+    const visit=node=>{
+      if(node.nodeType===3){
+        if(node.parentElement?.closest?.(unlocalizedContentSelector))return;
+        const translated=translateUiText(node.nodeValue||"",language);
+        if(translated!==node.nodeValue)node.nodeValue=translated;
+        return;
+      }
+      if(node.nodeType!==1&&node.nodeType!==9&&node.nodeType!==11)return;
+      if(node.nodeType===1){
+        for(const attribute of ["title","aria-label","placeholder"]){
+          if(!node.hasAttribute(attribute))continue;
+          const current=node.getAttribute(attribute),translated=translateUiText(current,language);
+          if(translated!==current)node.setAttribute(attribute,translated);
+        }
+        if(node.matches?.(unlocalizedContentSelector))return;
+      }
+      for(const child of node.childNodes||[])visit(child);
+    };
+    visit(root);
+  }
+  let languageObserver=null;
+  if(typeof MutationObserver!=="undefined"&&document.body){
+    languageObserver=new MutationObserver(records=>{
+      for(const record of records){
+        if(record.type==="childList")for(const node of record.addedNodes)applyLanguage(node,uiLanguage);
+        else applyLanguage(record.target,uiLanguage);
+      }
+    });
+    languageObserver.observe(document.body,{childList:true,subtree:true,attributes:true,attributeFilter:["title","aria-label","placeholder"],characterData:true});
+  }
+  document.documentElement.lang=uiLanguage;
+  applyLanguage(document.body,uiLanguage);
   let nextId = 1;
   const pending = new Map();
   const completedTaskResults = new Map();
@@ -492,7 +590,7 @@ body{font-size:calc(13px * var(--font-scale,1))}
     const options=(profileSnapshot?.routeGroupOptions||[{value:"",label:"默认",enabled:true}]).filter(option=>option.enabled!==false);
     const savedAvailable=options.some(option=>option.value===saved);
     const stale=saved&&!savedAvailable;
-    return `<div class="form-row profile-route-choice"><label><span>路线分组</span><select data-profile-route-group="${esc(profile.id)}" data-profile-role="${profile.builtin?esc(profile.role):""}">${options.map(option=>`<option value="${esc(option.value)}" ${option.value===(savedAvailable?saved:"")?"selected":""}>${esc(option.label)}</option>`).join("")}</select></label>${stale?`<small class="profile-route-warning">已固定路线或分组已关闭，请重新选择或恢复默认。</small><button class="profile-action" type="button" data-profile-clear-route="${esc(profile.id)}">恢复默认</button>`:""}</div>`;
+    return `<div class="form-row profile-route-choice"><label><span>路线分组</span><select data-profile-route-group="${esc(profile.id)}" data-profile-role="${profile.builtin?esc(profile.role):""}">${options.map(option=>`<option value="${esc(option.value)}" ${option.value?"data-user-copy":""} ${option.value===(savedAvailable?saved:"")?"selected":""}>${esc(option.label)}</option>`).join("")}</select></label>${stale?`<small class="profile-route-warning">已固定路线或分组已关闭，请重新选择或恢复默认。</small><button class="profile-action" type="button" data-profile-clear-route="${esc(profile.id)}">恢复默认</button>`:""}</div>`;
   }
   function renderProfiles() {
     const root=document.getElementById("profiles-root");
@@ -520,7 +618,7 @@ body{font-size:calc(13px * var(--font-scale,1))}
       list.innerHTML=profiles.map(profile=>{
         const builtin=Boolean(profile.builtin),confirmDelete=profileDeleteConfirmId===profile.id;
         const description=builtin?(builtinProfileDescriptions[profile.role]||"内置角色。"):(profile.instructions||"自定义角色指令");
-        return `<section class="profile-card"><div class="profile-content"><div class="profile-head"><span class="profile-name">${esc(profile.name)}</span><span class="profile-role">${builtin?"内置角色":esc(profileRoleLabel(profile.role))+" · 已保存"}</span></div><p class="profile-instructions">${esc(description)}</p>${profileRouteGroupMarkup(profile)}<div class="profile-actions"><button class="profile-action" data-profile-use="${esc(profile.id)}">用此配置发起</button>${builtin?"":`<button class="profile-action" data-profile-edit="${esc(profile.id)}">编辑</button><button class="profile-action" data-profile-delete="${esc(profile.id)}">${confirmDelete?"确认删除":"删除"}</button>${confirmDelete?`<button class="profile-action" data-profile-delete-cancel>取消</button>`:""}`}</div></div></section>`;
+        return `<section class="profile-card"><div class="profile-content"><div class="profile-head"><span class="profile-name">${esc(profile.name)}</span><span class="profile-role">${builtin?"内置角色":esc(profileRoleLabel(profile.role))+" · 已保存"}</span></div><p class="profile-instructions" ${builtin?"":"data-user-copy"}>${esc(description)}</p>${profileRouteGroupMarkup(profile)}<div class="profile-actions"><button class="profile-action" data-profile-use="${esc(profile.id)}">用此配置发起</button>${builtin?"":`<button class="profile-action" data-profile-edit="${esc(profile.id)}">编辑</button><button class="profile-action" data-profile-delete="${esc(profile.id)}">${confirmDelete?"确认删除":"删除"}</button>${confirmDelete?`<button class="profile-action" data-profile-delete-cancel>取消</button>`:""}`}</div></div></section>`;
       }).join("")||'<div class="config-empty">还没有可复用配置</div>';
     }
     list.onchange=async event=>{
@@ -584,7 +682,7 @@ body{font-size:calc(13px * var(--font-scale,1))}
     const selected=choices.find(item=>item.id===selectedProfileId)||null;
     const routes=routeDraft&&routeDraftRevision!==savedRouteDraftRevision?routeDraft:(configuration?.platforms||routeDraft||[]);
     const activeRoutes=routes.filter(route=>route.enabled!==false);
-    root.innerHTML=`<main class="configuration" id="launch-root"><div class="config-heading"><div><div class="config-title">发起子代理</div><div class="config-subtitle">选择角色和任务；可为子代理固定路线分组</div></div><button class="profile-action" id="back-to-profiles">返回配置</button></div><form id="launch-form" class="platform-card launch-form"><div class="form-row"><label for="launch-profile">子代理配置</label><select id="launch-profile" required><option value="">选择角色或配置…</option>${choices.map(profile=>`<option value="${esc(profile.id)}" ${profile.id===selected?.id?"selected":""}>${esc(profile.name)} · ${esc(profileRoleLabel(profile.role))}</option>`).join("")}</select></div><div class="form-row"><label for="launch-task">任务</label><textarea id="launch-task" required maxlength="12000" placeholder="描述这次要完成的任务…"></textarea></div><div class="form-row" id="launch-route-row" hidden><label for="launch-route">路线</label><select id="launch-route"><option value="">选择路线…</option>${activeRoutes.map(route=>`<option value="${esc(route.id)}">${esc(route.name)}</option>`).join("")}</select></div><div class="form-row" id="launch-group-row" hidden><label for="launch-group">分组</label><select id="launch-group" disabled><option value="">请先选择路线…</option></select></div><div class="profile-form-status" id="launch-route-note" aria-live="polite"></div><label class="form-check"><input id="launch-master-recall" type="checkbox" ${masterRecallDefault?"checked":""}>允许主控复调用</label><small class="permission-description">勾选后，主控会按原任务目标检查结果；若未完成，可在同一会话提出具体修改并续聊。</small><label class="form-check"><input id="launch-save-profile" type="checkbox">保存为可复用配置</label><div id="launch-profile-fields" hidden><div class="form-row"><label for="launch-profile-name">配置名称</label><input id="launch-profile-name" maxlength="120"></div><div class="form-row"><label for="launch-profile-instructions">可复用指令</label><textarea id="launch-profile-instructions" maxlength="12000" placeholder="可复用的工作边界和指令"></textarea></div><label class="form-check"><input id="launch-codex-callable" type="checkbox">允许 Codex 调用此配置</label><label class="form-check"><input id="launch-allow-mcp-tools" type="checkbox" checked>允许外部 MCP 工具</label><label class="form-check"><input id="launch-allow-skills" type="checkbox" checked>允许 Skills</label></div><div class="form-actions"><button class="profile-submit" type="submit">发起任务</button><button class="profile-cancel" type="button" id="cancel-launch">取消</button></div><div class="profile-form-status" id="launch-status" aria-live="polite"></div></form></main>`;
+    root.innerHTML=`<main class="configuration" id="launch-root"><div class="config-heading"><div><div class="config-title">发起子代理</div><div class="config-subtitle">选择角色和任务；可为子代理固定路线分组</div></div><button class="profile-action" id="back-to-profiles">返回配置</button></div><form id="launch-form" class="platform-card launch-form"><div class="form-row"><label for="launch-profile">子代理配置</label><select id="launch-profile" required><option value="">选择角色或配置…</option>${choices.map(profile=>`<option value="${esc(profile.id)}" ${profile.id===selected?.id?"selected":""}>${esc(profile.name)} · ${esc(profileRoleLabel(profile.role))}</option>`).join("")}</select></div><div class="form-row"><label for="launch-task">任务</label><textarea id="launch-task" required maxlength="12000" placeholder="描述这次要完成的任务…"></textarea></div><div class="form-row" id="launch-route-row" hidden><label for="launch-route">路线</label><select id="launch-route"><option value="">选择路线…</option>${activeRoutes.map(route=>`<option value="${esc(route.id)}" data-user-copy>${esc(route.name)}</option>`).join("")}</select></div><div class="form-row" id="launch-group-row" hidden><label for="launch-group">分组</label><select id="launch-group" disabled><option value="">请先选择路线…</option></select></div><div class="profile-form-status" id="launch-route-note" aria-live="polite"></div><label class="form-check"><input id="launch-master-recall" type="checkbox" ${masterRecallDefault?"checked":""}>允许主控复调用</label><small class="permission-description">勾选后，主控会按原任务目标检查结果；若未完成，可在同一会话提出具体修改并续聊。</small><label class="form-check"><input id="launch-save-profile" type="checkbox">保存为可复用配置</label><div id="launch-profile-fields" hidden><div class="form-row"><label for="launch-profile-name">配置名称</label><input id="launch-profile-name" maxlength="120"></div><div class="form-row"><label for="launch-profile-instructions">可复用指令</label><textarea id="launch-profile-instructions" maxlength="12000" placeholder="可复用的工作边界和指令"></textarea></div><label class="form-check"><input id="launch-codex-callable" type="checkbox">允许 Codex 调用此配置</label><label class="form-check"><input id="launch-allow-mcp-tools" type="checkbox" checked>允许外部 MCP 工具</label><label class="form-check"><input id="launch-allow-skills" type="checkbox" checked>允许 Skills</label></div><div class="form-actions"><button class="profile-submit" type="submit">发起任务</button><button class="profile-cancel" type="button" id="cancel-launch">取消</button></div><div class="profile-form-status" id="launch-status" aria-live="polite"></div></form></main>`;
     animateView(root,launchingFromActivity?"up":"left");
     setActiveTab();
     root.querySelector("#back-to-profiles")?.addEventListener("click",showProfilesView);
@@ -747,6 +845,10 @@ body{font-size:calc(13px * var(--font-scale,1))}
     const root = document.getElementById("view-root");
     root.classList.add("settings-open");
     root.innerHTML = `<main class="configuration"><div class="config-heading"><div><div class="config-title">设置</div><div class="config-subtitle">外观、布局、凭据与本机数据</div></div></div><div class="settings-top-grid"><section class="appearance-card"><div class="appearance-title">外观与布局</div><div class="appearance-controls"><label class="appearance-control"><span>字体大小 <output id="font-size-value">${fontSizeMode==="codex"?"跟随 Codex · ":""}${fontSize}px</output></span><input id="font-size-slider" type="range" min="11" max="20" step="1" value="${fontSize}"></label><label class="appearance-control"><span>左侧任务栏宽度 <output id="sidebar-size-value">${sidebarWidth||250}px</output></span><input id="sidebar-size-slider" type="range" min="200" max="420" step="10" value="${sidebarWidth||250}"></label></div><div class="appearance-preferences"><label class="permission-control" title="开启后允许 Codex 发起子代理；关闭后 Codex 不能发起新任务，但仍可从“子代理”页面手动发起。"><input type="checkbox" id="allow-codex-launch" aria-label="允许 Codex 发起子代理" title="开启后允许 Codex 发起子代理；关闭后 Codex 不能发起新任务，但仍可从“子代理”页面手动发起。">允许 Codex 发起子代理 <span class="permission-help" aria-hidden="true">ⓘ</span></label><div class="theme-control-wrap"><div class="form-label">主题与配色</div><div class="theme-control" aria-label="显示模式"><button class="theme-button" data-theme-mode="codex" title="跟随 Codex 外观" aria-pressed="false">跟随 Codex</button><button class="theme-button" data-theme-mode="system" aria-pressed="false">跟随系统</button><button class="theme-button" data-theme-mode="light" aria-pressed="false">浅色</button><button class="theme-button" data-theme-mode="dark" aria-pressed="false">深色</button></div><div class="theme-hint" id="theme-hint" aria-live="polite"></div></div><div class="profile-form-status" id="codex-permission-status" aria-live="polite"></div></div><label class="motion-setting"><span><strong>界面动效</strong><small>淡入滑动、点击反馈、指针粒子</small></span><span class="motion-switch"><input id="motion-toggle" type="checkbox" role="switch" ${animationsEnabled?"checked":""}><i aria-hidden="true"></i></span></label></section></div><div class="security-note"><span class="security-icon" aria-hidden="true">◈</span><div><strong>密钥保存在本机加密存储中。</strong>输入框默认遮住当前密钥；点眼睛即可显示并编辑，保存后仍会加密保存在本机。</div><button type="button" class="small-action security-dismiss" id="hide-security-note">不再显示</button></div><div class="route-toolbar"><button type="button" class="small-action" id="add-route">增加路线</button><button type="button" class="small-action" id="save-routes">保存路线设置</button><span id="route-save-status" class="profile-form-status" aria-live="polite"></span><span class="route-save-hint">分组名称、请求模型和 API 地址由各组的“保存分组”按钮单独保存；删除路线和开关选择会自动保存；路线名称、分组增删和调用顺序由此处保存。新密钥可在保存分组时一并加密保存。</span></div><div class="platform-grid" id="platform-grid"><div class="config-loading">正在读取本地配置…</div></div><div class="config-footer"><span>密钥保存在本机加密存储中；保存后可立即用于任务，重启后仍会保留。</span></div><section class="reset-card"><div class="reset-heading"><div><div class="appearance-title">清理与删除</div><div class="permission-description">清理本机数据会删除密钥、路线与分组、面板偏好、自定义子代理和任务记录，并恢复程序默认配置。</div></div></div><div class="reset-actions"><button type="button" class="small-action" id="clear-local-data">清理本机数据</button><button type="button" class="profile-cancel" id="cancel-reset" hidden>取消</button></div><div class="profile-form-status" id="reset-status" aria-live="polite"></div></section></main>`;
+    const appearanceControls=root.querySelector(".appearance-controls");
+    appearanceControls?.insertAdjacentHTML("beforeend",'<label class="appearance-control language-control"><span>界面语言</span><select id="language-select"><option value="zh-CN">中文</option><option value="en">English</option></select></label>');
+    const languageSelect=root.querySelector("#language-select");
+    if(languageSelect)languageSelect.value=uiLanguage;
     root.querySelector(".route-save-hint").textContent="路线与分组开关、参与 Auto、Auto 模式和删除路线会自动保存；路线名称、分组增删和调用顺序仍需点“保存路线设置”。分组名称、模型和 API 地址由各组的“保存分组”按钮提交；新密钥可一并加密保存。";
     const permissionLabel=root.querySelector("#allow-codex-launch")?.closest("label");
     if(permissionLabel){permissionLabel.title="控制 Codex 是否可通过本服务发起或续聊子代理；Codex 原生子代理不受影响，也可从此面板手动发起任务。";permissionLabel.querySelector("input").title=permissionLabel.title;const note=document.createElement("div");note.className="permission-inline-note";note.textContent="取消勾选后，Codex 不能通过本服务发起或续聊子代理；Codex 原生子代理不受影响，也可从此面板手动发起任务。";permissionLabel.after(note);}
@@ -771,7 +873,9 @@ body{font-size:calc(13px * var(--font-scale,1))}
         const result=await rpc("tools/call",{name:"laowu_reset_configuration",arguments:{confirm:true}},60000);
         if(result?.isError)throw new Error(result.content?.[0]?.text||"操作失败");
         const resetResult=textOf(result);
-        try{for(const key of ["laowu-theme",sidebarStorageKey,"laowu-font-size","laowu-hide-security-note","laowu-animations","laowu-master-recall-default",activityListStorageKey])localStorage.removeItem(key);}catch{}
+        try{for(const key of ["laowu-theme",sidebarStorageKey,"laowu-font-size",LANGUAGE_KEY,"laowu-hide-security-note","laowu-animations","laowu-master-recall-default",activityListStorageKey])localStorage.removeItem(key);}catch{}
+        uiLanguage="zh-CN";applyLanguage(document.body,uiLanguage);
+        const languageSelect=document.getElementById("language-select");if(languageSelect)languageSelect.value=uiLanguage;
         masterRecallDefault=true;activityListCollapsed=false;
         const securityNote=root.querySelector(".security-note");if(securityNote)securityNote.hidden=false;
         setAnimationsEnabled(!reducedMotionQuery.matches,false);
@@ -1201,12 +1305,13 @@ body{font-size:calc(13px * var(--font-scale,1))}
     if(seconds==null) return "—";
     const wholeSeconds=Math.max(0,Math.floor(Number(seconds)));
     if(!Number.isFinite(wholeSeconds)) return "—";
+    if(uiLanguage==="en")return wholeSeconds<60?`${wholeSeconds}s`:`${Math.floor(wholeSeconds/60)}m ${wholeSeconds%60}s`;
     return wholeSeconds<60?`${wholeSeconds} 秒`:`${Math.floor(wholeSeconds/60)} 分 ${wholeSeconds%60} 秒`;
   }
   function formatTime(value) {
     if(!value) return "—";
     const date=new Date(value);
-    return Number.isNaN(date.getTime())?short(value,18):new Intl.DateTimeFormat("zh-CN",{hour:"2-digit",minute:"2-digit",second:"2-digit"}).format(date);
+    return Number.isNaN(date.getTime())?short(value,18):new Intl.DateTimeFormat(uiLanguage==="en"?"en-US":"zh-CN",{hour:"2-digit",minute:"2-digit",second:"2-digit"}).format(date);
   }
   function render() {
     if(activeView!=="activity") return;
@@ -1215,8 +1320,8 @@ body{font-size:calc(13px * var(--font-scale,1))}
     let listHtml;
     if(!activities.length) listHtml='<div class="empty" style="min-height:110px">还没有代理任务</div>';
     else listHtml=activities.slice().reverse().map(a=>{
-      const meta=[a.retained?"已保留":null,a.currentGroup,a.model].filter(Boolean).join(" · ")||formatDuration(a.elapsedSeconds);
-      return `<button class="agent ${a.id===selectedId?"active":""}" data-id="${esc(a.id)}"><span class="agent-head"><i class="dot ${esc(a.status)}"></i><span class="role">${esc(activityRoleLabel(a))}</span><span class="state state-${esc(a.status)}">${esc(statusLabel(a.status))}</span></span><span class="task-short">${esc(activityTitle(a))}</span><span class="task-meta">${esc(meta)}</span></button>`;
+      const meta=[a.retained?translateUiText("已保留",uiLanguage):null,a.currentGroup?`<span data-user-copy>${esc(a.currentGroup)}</span>`:null,a.model?`<span data-user-copy>${esc(a.model)}</span>`:null].filter(Boolean).join(" · ")||esc(formatDuration(a.elapsedSeconds));
+      return `<button class="agent ${a.id===selectedId?"active":""}" data-id="${esc(a.id)}"><span class="agent-head"><i class="dot ${esc(a.status)}"></i><span class="role">${esc(activityRoleLabel(a))}</span><span class="state state-${esc(a.status)}">${esc(statusLabel(a.status))}</span></span><span class="task-short">${esc(activityTitle(a))}</span><span class="task-meta">${meta}</span></button>`;
     }).join("");
     if(list._renderedHtml!==listHtml) {
       const existingIds=new Set(Array.from(list.querySelectorAll(".agent"),item=>item.dataset.id));
@@ -1233,14 +1338,14 @@ body{font-size:calc(13px * var(--font-scale,1))}
     if(activityChanged) followTranscriptBottom=true;
     const elapsed=activity.elapsedSeconds??(activity.startedAt?Math.max(0,Math.floor((Date.now()-Date.parse(activity.startedAt))/1000)):null);
     const duration=formatDuration(elapsed);
-    const chipValues=[statusLabel(activity.status),activity.currentGroup,activity.model,duration,activity.retained?"已保留":null].filter(Boolean);
-    const chips=chipValues.map((value,index)=>`<span class="chip ${index===0?`state-${esc(activity.status)}`:index===2?"primary":""}">${esc(value)}</span>`).join("");
+    const chipValues=[[statusLabel(activity.status),false],[activity.currentGroup,true],[activity.model,true],[duration,false],[activity.retained?translateUiText("已保留",uiLanguage):null,false]].filter(([value])=>value);
+    const chips=chipValues.map(([value,userCopy],index)=>`<span class="chip ${index===0?`state-${esc(activity.status)}`:index===2?"primary":""} ${userCopy?"user-copy":""}">${esc(value)}</span>`).join("");
     const events=activity.events||[];
     const visibleEventIds=new Set();
     events.forEach((e,index)=>{if(e.kind==="tool"||e.kind==="progress"||!e.kind)visibleEventIds.add(`${activity.id}:${e.eventId||e.id||e.time||index}`);});
     for(const id of expandedEventIds)if(!visibleEventIds.has(id))expandedEventIds.delete(id);
     const fullResult=completedTaskResults.get(activity.id);
-    const eventSnapshot=JSON.stringify([activityRoleLabel(activity),activity.role,activity.initiator,codexDisplayName,userDisplayName,events,fullResult]);
+    const eventSnapshot=JSON.stringify([uiLanguage,activityRoleLabel(activity),activity.role,activity.initiator,codexDisplayName,userDisplayName,events,fullResult]);
     const eventsChanged=activityChanged||previousTranscript?._eventSnapshot!==eventSnapshot;
     let rows=eventsChanged?events.map((e,eventIndex)=>{
       const kind=e.kind||"progress";
@@ -1261,7 +1366,7 @@ body{font-size:calc(13px * var(--font-scale,1))}
       const replyClass=kind==="assistant"&&!expanded?" reply-collapsed":"";
       const replyButton=kind==="assistant"?`<button type="button" class="reply-toggle" data-reply-id="${esc(replyId)}" hidden>${expanded?"收起":"展开"}</button>`:"";
       const eventButton=expandableEvent&&!isProviderFailure?`<button type="button" class="event-toggle" data-event-toggle="${esc(replyId)}" aria-expanded="${eventExpanded}" aria-label="${eventExpanded?"收起":"展开"}详情" title="${eventExpanded?"收起":"展开"}详情">${eventExpanded?"▾":"▸"}</button>`:"";
-      return `<article class="entry ${esc(kind)}${isProviderFailure?" failure":""}${isEnd?" end":""}${expandableEvent&&!eventExpanded?" event-collapsed":""}" data-event-id="${esc(replyId)}"><div class="event-marker"></div><div class="event-content"><div class="entry-head"><span class="event-type">${esc(title)}</span>${eventButton}${speaker?`<span class="speaker">${esc(speaker)}</span>`:""}<time class="event-time" title="${esc(e.time||"")}">${esc(time)}</time></div><div class="bubble${replyClass}">${esc(e.text||"")}</div>${replyButton}</div></article>`;
+      return `<article class="entry ${esc(kind)}${isProviderFailure?" failure":""}${isEnd?" end":""}${expandableEvent&&!eventExpanded?" event-collapsed":""}" data-event-id="${esc(replyId)}"><div class="event-marker"></div><div class="event-content"><div class="entry-head"><span class="event-type">${esc(title)}</span>${eventButton}${speaker?`<span class="speaker" ${kind==="user"?"data-user-copy":""}>${esc(speaker)}</span>`:""}<time class="event-time" title="${esc(e.time||"")}">${esc(time)}</time></div><div class="bubble${replyClass}">${esc(e.text||"")}</div>${replyButton}</div></article>`;
     }).join(""):null;
     if(eventsChanged&&typeof fullResult==="string")rows+=`<article class="entry assistant"><div class="event-marker"></div><div class="event-content"><div class="entry-head"><span class="event-type">完整结果</span></div><div class="bubble">${esc(fullResult)}</div></div></article>`;
     const stopButton=["queued","running"].includes(activity.status)?`<button class="stop" id="stop-task">停止任务</button>`:"";
@@ -1364,6 +1469,14 @@ body{font-size:calc(13px * var(--font-scale,1))}
       bindActivityListToggle();
     }
   }
+  document.addEventListener("change",event=>{
+    if(event.target?.id!=="language-select")return;
+    try { uiLanguage=saveLanguage(localStorage,event.target.value); }
+    catch { uiLanguage=event.target.value==="en"?"en":"zh-CN"; }
+    if(userDisplayName==="用户"||userDisplayName==="User")userDisplayName=uiLanguage==="en"?"User":"用户";
+    applyLanguage(document.body,uiLanguage);
+    if(activeView==="activity")render();
+  });
   initialize();
 })();
 </script>
