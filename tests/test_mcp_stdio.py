@@ -85,7 +85,7 @@ class MCPStdioTests(unittest.TestCase):
                 self.assertIn("Do not create a duplicate task", init["instructions"])
                 schemas = {tool["name"]: tool for tool in request("tools/list", {})["tools"]}
                 self.assertIn("offset", schemas["laowu_task_result"]["inputSchema"]["properties"])
-                self.assertIn("concurrency", schemas["laowu_profiles"]["inputSchema"]["properties"]["action"]["enum"])
+                self.assertNotIn("concurrency", schemas["laowu_profiles"]["inputSchema"]["properties"]["action"]["enum"])
                 launch = call("run_subagent_reviewer", cwd=str(ROOT), task="smoke", group="auto")
                 aid = launch["structuredContent"]["activity_id"]
                 first = terminal(aid)

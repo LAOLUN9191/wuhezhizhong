@@ -34,9 +34,9 @@ class SidebarCredentialTests(unittest.TestCase):
         self.assertIn('markRouteDraftChanged();renderConfiguration();void saveRouteSettings({automatic:true});', SIDEBAR_SOURCE)
         self.assertIn('.drag-handle', SIDEBAR_SOURCE)
 
-    def test_global_concurrency_control_exists_without_per_role_limits(self):
-        self.assertIn('id="subagent-concurrency"', SIDEBAR_SOURCE)
-        self.assertIn('action:"concurrency",concurrency:value', SIDEBAR_SOURCE)
+    def test_global_concurrency_control_is_removed(self):
+        self.assertNotIn('id="subagent-concurrency"', SIDEBAR_SOURCE)
+        self.assertNotIn('action:"concurrency"', SIDEBAR_SOURCE)
         self.assertNotIn('data-builtin-concurrency', SIDEBAR_SOURCE)
         self.assertNotIn('builtin_concurrency', SIDEBAR_SOURCE)
         self.assertIn('.shell{height:100%;display:grid;grid-template-rows:52px minmax(0,1fr)}', SIDEBAR_SOURCE)
@@ -167,7 +167,7 @@ class SidebarCredentialTests(unittest.TestCase):
 
     def test_profile_configuration_hides_removed_permission_toggles(self):
         start = SIDEBAR_SOURCE.index("function profileEditorMarkup()")
-        end = SIDEBAR_SOURCE.index("async function showLaunchView(", start)
+        end = SIDEBAR_SOURCE.index("function showSettingsView()", start)
         profile_page = SIDEBAR_SOURCE[start:end]
         for value in ("profile-callable-input", "profile-allow-mcp-tools-input", "profile-allow-skills-input", "data-profile-permission", "data-profile-allow-mcp-tools", "data-profile-allow-skills"):
             self.assertNotIn(value, profile_page)
@@ -181,7 +181,7 @@ class SidebarCredentialTests(unittest.TestCase):
 
     def test_profile_configuration_has_no_removed_capability_controls(self):
         start = SIDEBAR_SOURCE.index("function profileEditorMarkup()")
-        end = SIDEBAR_SOURCE.index("async function showLaunchView(", start)
+        end = SIDEBAR_SOURCE.index("function showSettingsView()", start)
         self.assertNotIn("builtin_capabilities", SIDEBAR_SOURCE[start:end])
         self.assertNotIn("profileCapabilityError", SIDEBAR_SOURCE[start:end])
 
@@ -196,42 +196,8 @@ class SidebarCredentialTests(unittest.TestCase):
         self.assertIn('class="theme-control-wrap"', SIDEBAR_SOURCE)
         self.assertIn(".appearance-preferences{", SIDEBAR_SOURCE)
 
-    def test_launch_refreshes_single_route_group_choices_and_uses_selected_group(self):
-        start = SIDEBAR_SOURCE.index("function updateLaunchGroups(")
-        end = SIDEBAR_SOURCE.index("function updateLaunchRouting()", start)
-        groups = SIDEBAR_SOURCE[start:end]
-        self.assertIn("const canAuto=routeCanAuto(route)", groups)
-        routing_start = end
-        routing_end = SIDEBAR_SOURCE.index('routeSelect.onchange=', routing_start)
-        routing = SIDEBAR_SOURCE[routing_start:routing_end]
-        self.assertIn("groupRow.hidden=false", routing)
-        self.assertIn("updateLaunchGroups(", routing)
-        submit_start = SIDEBAR_SOURCE.index('form.addEventListener("submit",async event=>', routing_end)
-        submit_end = SIDEBAR_SOURCE.index("const routeChoice=selectedRoute.id", submit_start)
-        submit = SIDEBAR_SOURCE[submit_start:submit_end]
-        self.assertIn("group=groupSelect.value", submit)
-        self.assertNotIn('group=activeRoutes.length===1?"auto"', submit)
 
-    def test_launch_sends_selected_route_for_every_auto_request(self):
-        start = SIDEBAR_SOURCE.index('form.addEventListener("submit",async event=>')
-        end = SIDEBAR_SOURCE.index('if(selectedProfile.id.startsWith("builtin-"))args.role', start)
-        submit = SIDEBAR_SOURCE[start:end]
 
-        self.assertIn('const args={task:form.querySelector("#launch-task").value.trim(),cwd:configuration?.workspace||"",group};', submit)
-        self.assertIn('if(group==="auto")args.route_choice=routeChoice;', submit)
-        self.assertNotIn("multipleAutoRoutes", submit)
-        self.assertNotIn("group,route_choice:routeChoice", submit)
-
-    def test_launch_offers_master_recall_and_submits_its_boolean_setting(self):
-        start = SIDEBAR_SOURCE.index("async function showLaunchView(")
-        end = SIDEBAR_SOURCE.index("function showSettingsView(", start)
-        launch = SIDEBAR_SOURCE[start:end]
-
-        self.assertIn('<input id="launch-master-recall" type="checkbox" ${masterRecallDefault?"checked":""}>', launch)
-        self.assertIn('允许主控复调用', launch)
-        self.assertIn('args.master_recall=form.querySelector("#launch-master-recall").checked', launch)
-        self.assertIn('id="activity-master-recall-default" type="checkbox" ${masterRecallDefault?"checked":""}', SIDEBAR_SOURCE)
-        self.assertIn('localStorage.setItem("laowu-master-recall-default",String(masterRecallDefault))', SIDEBAR_SOURCE)
 
     def test_completed_activity_shows_master_recall_only_when_available_without_relaunch_ui(self):
         start = SIDEBAR_SOURCE.index("function render()")
@@ -243,23 +209,7 @@ class SidebarCredentialTests(unittest.TestCase):
         self.assertNotIn('再次发起子代理', render)
         self.assertNotIn('data-master-recall', render)
 
-    def test_successful_launch_selects_new_activity_before_returning_to_activity_view(self):
-        start = SIDEBAR_SOURCE.index('const result=await rpc("tools/call",{name:"laowu_launch_task"')
-        end = SIDEBAR_SOURCE.index("} catch(error){status.textContent", start)
-        success = SIDEBAR_SOURCE[start:end]
 
-        self.assertIn('pendingActivityId=activityId;selectedId=activityId;', success)
-        self.assertIn('showActivityView();', success)
-        self.assertIn('void refresh();', success)
-
-    def test_launch_view_ignores_stale_async_open_requests(self):
-        self.assertRegex(SIDEBAR_SOURCE, r"let launchViewRevision\s*=\s*0")
-        start = SIDEBAR_SOURCE.index("async function showLaunchView(")
-        end = SIDEBAR_SOURCE.index("function showSettingsView(", start)
-        launch = SIDEBAR_SOURCE[start:end]
-        self.assertIn("const launchRevision=++launchViewRevision", launch)
-        self.assertGreaterEqual(launch.count("launchRevision!==launchViewRevision"), 2)
-        self.assertIn("routeSelect.onchange=()=>updateLaunchRouting()", launch)
 
     def test_reply_expand_toggle_is_hidden_when_full_reply_fits_and_rechecked_after_resize(self):
         self.assertIn("function syncReplyToggles()", SIDEBAR_SOURCE)
@@ -269,13 +219,6 @@ class SidebarCredentialTests(unittest.TestCase):
         self.assertIn("window.addEventListener(\"resize\",syncReplyToggles)", SIDEBAR_SOURCE)
         self.assertIn(".reply-toggle[hidden]{display:none}", SIDEBAR_SOURCE)
 
-    def test_launch_refreshes_profile_and_route_configuration_before_render(self):
-        start = SIDEBAR_SOURCE.index("async function showLaunchView(")
-        end = SIDEBAR_SOURCE.index("const launchingFromActivity=", start)
-        launch = SIDEBAR_SOURCE[start:end]
-        self.assertTrue("await loadProfiles()" in launch, "launch view refreshes current profile route choices")
-        self.assertTrue("await fetchConfiguration()" in launch, "launch view refreshes current route configuration")
-        self.assertTrue("routeDraft&&routeDraftRevision!==savedRouteDraftRevision?routeDraft" in SIDEBAR_SOURCE, "clean route draft yields to the fresh settings snapshot")
 
 
 class SidebarActivityTests(unittest.TestCase):
@@ -309,15 +252,12 @@ class SidebarActivityTests(unittest.TestCase):
         render_start = SIDEBAR_SOURCE.index("function render()")
         render_end = SIDEBAR_SOURCE.index("async function initialize()", render_start)
         render = SIDEBAR_SOURCE[render_start:render_end]
-        launch_start = SIDEBAR_SOURCE.index("async function showLaunchView(")
-        launch_end = SIDEBAR_SOURCE.index("function showSettingsView()", launch_start)
-        launch = SIDEBAR_SOURCE[launch_start:launch_end]
-
         self.assertIn('activity.status==="completed"&&activity.masterRecallAvailable===true', render)
         self.assertIn("laowu_continue_task", render)
         self.assertNotIn('data-activity-action="recall"', render)
         self.assertNotIn('showLaunchView(activity.profileId||`builtin-${activity.role}`', render)
-        self.assertIn("async function showLaunchView(selectedProfileId=null,draft={})", launch)
+        self.assertNotIn("showLaunchView", SIDEBAR_SOURCE)
+        self.assertNotIn("id=\"launch-task\"", SIDEBAR_SOURCE)
 
     def test_session_list_can_collapse_and_persist(self):
         self.assertIn('id="toggle-activity-list"', SIDEBAR_SOURCE)

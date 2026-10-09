@@ -384,17 +384,15 @@ def _atomic_write_text(path: Path, content: str) -> None:
             pass
 
 
+MAX_QUEUED_WORK = 32
+MAX_PARALLEL_WORKERS = 8
 WORKERS = concurrent.futures.ThreadPoolExecutor(max_workers=4)
 MODEL_QUERY_WORKERS = concurrent.futures.ThreadPoolExecutor(max_workers=2)
-PARALLEL_WORKERS = concurrent.futures.ThreadPoolExecutor(max_workers=8)
-MAX_QUEUED_WORK = 32
-MAX_SUBAGENT_CONCURRENCY = 8
+PARALLEL_WORKERS = concurrent.futures.ThreadPoolExecutor(max_workers=MAX_PARALLEL_WORKERS)
 WORKER_CAPACITY = threading.BoundedSemaphore(4 + MAX_QUEUED_WORK)
 MODEL_QUERY_WORKER_CAPACITY = threading.BoundedSemaphore(2)
-PARALLEL_WORKER_CAPACITY = threading.BoundedSemaphore(8 + MAX_QUEUED_WORK)
-PROVIDER_SLOTS = threading.BoundedSemaphore(8)
-ACTIVE_SUBAGENT_CALLS = 0
-SUBAGENT_CALLS_CONDITION = threading.Condition()
+PARALLEL_WORKER_CAPACITY = threading.BoundedSemaphore(MAX_PARALLEL_WORKERS + MAX_QUEUED_WORK)
+PROVIDER_SLOTS = threading.BoundedSemaphore(MAX_PARALLEL_WORKERS)
 API_KEYS: dict[str, str] = {}
 PROVIDER_NO_RESPONSE_TIMEOUT_SECONDS = 300
 PROVIDER_TOTAL_TIMEOUT_SECONDS = 1800
@@ -460,7 +458,6 @@ def _submit_bounded(
 def _default_state() -> dict[str, Any]:
     return {
         "schemaVersion": STATE_SCHEMA_VERSION,
-        "subagentConcurrency": MAX_SUBAGENT_CONCURRENCY,
         "allowCodexLaunch": True,
         "builtinPermissions": {
             "scout": True,
@@ -702,10 +699,6 @@ def _validate_state(state: Any) -> dict[str, Any]:
         raise ValueError(f"Unsupported laowu state schema version: {state['schemaVersion']}")
     if type(state.get("allowCodexLaunch")) is not bool:
         raise ValueError("Invalid allowCodexLaunch in saved laowu state")
-    subagent_concurrency = state.get("subagentConcurrency", MAX_SUBAGENT_CONCURRENCY)
-    if type(subagent_concurrency) is not int or not 1 <= subagent_concurrency <= MAX_SUBAGENT_CONCURRENCY:
-        raise ValueError("Invalid subagentConcurrency in saved laowu state")
-
     permissions = state.get("builtinPermissions")
     if not isinstance(permissions, dict) or any(
         role in permissions and type(permissions[role]) is not bool for role in ROLE_GUIDANCE
@@ -931,7 +924,6 @@ def _validate_state(state: Any) -> dict[str, Any]:
 
     return {
         "schemaVersion": STATE_SCHEMA_VERSION,
-        "subagentConcurrency": subagent_concurrency,
         "allowCodexLaunch": state["allowCodexLaunch"],
         "builtinPermissions": {role: permissions.get(role, True) for role in ROLE_GUIDANCE},
         "builtinRouteGroups": {
@@ -961,7 +953,7 @@ def load_state() -> dict[str, Any]:
         try:
             state = json.loads(source_path.read_text(encoding="utf-8"))
             normalized = _validate_state(state)
-            legacy_role_limits = "builtinConcurrency" in state
+            legacy_concurrency_settings = "builtinConcurrency" in state or "subagentConcurrency" in state
         except FileNotFoundError:
             STATE_LOAD_ERROR = None
             return _default_state()
@@ -989,7 +981,7 @@ def load_state() -> dict[str, Any]:
                 if not pending["result"]:
                     pending["result"] = "任务在 MCP 重启前未能完成。"
                 interrupted = True
-        if migrating or interrupted or legacy_role_limits:
+        if migrating or interrupted or legacy_concurrency_settings:
             try:
                 save_state(normalized)
                 if migrating:
@@ -1315,7 +1307,6 @@ def _profile_snapshot() -> dict[str, Any]:
     builtins = [_builtin_profile(role) for role in ROLE_GUIDANCE]
     return {
         "allowCodexLaunch": bool(state.get("allowCodexLaunch", True)) and load_error is None,
-        "subagentConcurrency": state.get("subagentConcurrency", MAX_SUBAGENT_CONCURRENCY),
         "builtinProfiles": builtins,
         "profiles": state.get("profiles", []),
         "routeGroupOptions": _profile_route_group_options(),
@@ -1419,17 +1410,6 @@ def _profiles_action(arguments: Any) -> dict[str, Any]:
     if not isinstance(action, str):
         return _tool_text_result("action must be text", True)
     if action == "get":
-        return _configuration_result(_profile_snapshot())
-    if action == "concurrency":
-        concurrency = arguments.get("concurrency")
-        if type(concurrency) is not int or not 1 <= concurrency <= MAX_SUBAGENT_CONCURRENCY:
-            return _tool_text_result(
-                f"concurrency must be an integer from 1 to {MAX_SUBAGENT_CONCURRENCY}", True,
-            )
-        try:
-            _mutate_persisted_state(lambda value: value.update(subagentConcurrency=concurrency))
-        except (OSError, ValueError, TypeError) as exc:
-            return _tool_text_result(f"Could not save subagent concurrency: {type(exc).__name__}", True)
         return _configuration_result(_profile_snapshot())
     if action == "builtin_permission":
         role = arguments.get("role")
@@ -2289,12 +2269,12 @@ def _run_provider(
 ) -> tuple[int, str, str]:
     if not API_KEYS.get(KEY_NAMES[provider]):
         return 78, "", f"API key is not configured for {provider}"
-    if not _acquire_subagent_slot(cancel_event):
+    if SERVER_STOPPING.is_set() or (cancel_event and cancel_event.is_set()):
         return 130, "", "Task cancelled before provider start."
     provider_slot_acquired = False
     try:
         while not PROVIDER_SLOTS.acquire(timeout=0.5):
-            if cancel_event and cancel_event.is_set():
+            if SERVER_STOPPING.is_set() or (cancel_event and cancel_event.is_set()):
                 return 130, "", "Task cancelled before provider start."
         provider_slot_acquired = True
         return _run_provider_with_slot(
@@ -2305,28 +2285,6 @@ def _run_provider(
     finally:
         if provider_slot_acquired:
             PROVIDER_SLOTS.release()
-        _release_subagent_slot()
-
-
-def _acquire_subagent_slot(cancel_event: threading.Event | None = None) -> bool:
-    global ACTIVE_SUBAGENT_CALLS
-    while True:
-        if SERVER_STOPPING.is_set() or (cancel_event and cancel_event.is_set()):
-            return False
-        with STATE_LOCK:
-            limit = PERSISTED_STATE.get("subagentConcurrency", MAX_SUBAGENT_CONCURRENCY)
-        with SUBAGENT_CALLS_CONDITION:
-            if ACTIVE_SUBAGENT_CALLS < limit:
-                ACTIVE_SUBAGENT_CALLS += 1
-                return True
-            SUBAGENT_CALLS_CONDITION.wait(timeout=0.25)
-
-
-def _release_subagent_slot() -> None:
-    global ACTIVE_SUBAGENT_CALLS
-    with SUBAGENT_CALLS_CONDITION:
-        ACTIVE_SUBAGENT_CALLS = max(0, ACTIVE_SUBAGENT_CALLS - 1)
-        SUBAGENT_CALLS_CONDITION.notify_all()
 
 
 def _run_provider_with_slot(
@@ -2355,15 +2313,12 @@ def _run_native_codex_fallback(
     role: str, task: str, cwd: str, failures: list[str], cancel_event: threading.Event | None,
     *, allow_mcp_tools: bool = True, allow_skills: bool = True,
 ) -> tuple[int, str, str]:
-    if not _acquire_subagent_slot(cancel_event):
+    if SERVER_STOPPING.is_set() or (cancel_event and cancel_event.is_set()):
         return 130, "", "Native Codex fallback cancelled before startup."
-    try:
-        return _run_native_codex_fallback_with_slot(
-            role, task, cwd, failures, cancel_event,
-            allow_mcp_tools=allow_mcp_tools, allow_skills=allow_skills,
-        )
-    finally:
-        _release_subagent_slot()
+    return _run_native_codex_fallback_with_slot(
+        role, task, cwd, failures, cancel_event,
+        allow_mcp_tools=allow_mcp_tools, allow_skills=allow_skills,
+    )
 
 
 def _run_native_codex_fallback_with_slot(
@@ -3181,7 +3136,7 @@ def _activity_tool_schemas() -> list[dict[str, Any]]:
         {
             "name": "laowu_codex_permission",
             "title": "Set Codex subagent permission",
-            "description": "Read or set whether Codex may initiate or continue subagent tasks. Manual launches from the panel remain available.",
+            "description": "Read or set whether Codex may initiate or continue subagent tasks through this service. Native Codex subagents are unaffected.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -3196,12 +3151,11 @@ def _activity_tool_schemas() -> list[dict[str, Any]]:
         {
             "name": "laowu_profiles",
             "title": "Manage saved subagents",
-            "description": "List, create, update, and delete saved subagent profiles, set route groups or permissions, and choose a shared subagent concurrency limit from one to eight.",
+            "description": "List, create, update, and delete saved subagent profiles, and set route groups or permissions.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "action": {"type": "string", "enum": ["get", "create", "update", "delete", "builtin_permission", "builtin_capabilities", "route_group", "concurrency"]},
-                    "concurrency": {"type": "integer", "minimum": 1, "maximum": 8},
+                    "action": {"type": "string", "enum": ["get", "create", "update", "delete", "builtin_permission", "builtin_capabilities", "route_group"]},
                     "profile_id": {"type": "string"},
                     "name": {"type": "string", "maxLength": 120},
                     "role": {"type": "string", "enum": list(ROLE_GUIDANCE)},
@@ -3212,36 +3166,6 @@ def _activity_tool_schemas() -> list[dict[str, Any]]:
                     "allow_skills": {"type": "boolean"},
                 },
                 "required": ["action"],
-                "additionalProperties": False,
-            },
-            "_meta": {"ui": {"visibility": ["app"]}},
-        },
-        {
-            "name": "laowu_launch_task",
-            "title": "Launch a subagent from the panel",
-            "description": (
-                "Manually start a subagent task in the panel. User-initiated actions are not blocked by Codex-call permissions. master_recall defaults to true and enables continuation of the completed Codex session."
-            ),
-            "inputSchema": {
-                "type": "object",
-                "properties": {
-                    "role": {"type": "string", "enum": list(ROLE_GUIDANCE)},
-                    "profile_id": {"type": "string"},
-                    "task": {"type": "string", "maxLength": MAX_ACTIVITY_TEXT},
-                    "cwd": {"type": "string"},
-                    "group": {"type": "string", "enum": list(GROUPS), "default": "auto"},
-                    **({"route_choice": _route_choice_schema()} if _route_choice_schema() is not None else {}),
-                    "save_profile": {"type": "boolean"},
-                    "profile_name": {"type": "string", "maxLength": 120},
-                    "profile_instructions": {"type": "string", "maxLength": MAX_ACTIVITY_TEXT},
-                    "codex_callable": {"type": "boolean"},
-                    "route_group": {"type": "string", "maxLength": 128},
-                    "allow_mcp_tools": {"type": "boolean"},
-                    "allow_skills": {"type": "boolean"},
-                    "master_recall": {"type": "boolean", "default": True},
-                },
-                "required": ["task", "cwd", "group"],
-                "oneOf": [{"required": ["role"]}, {"required": ["profile_id"]}],
                 "additionalProperties": False,
             },
             "_meta": {"ui": {"visibility": ["app"]}},
@@ -4228,165 +4152,6 @@ def _cancel_subagent_activity(activity_id: Any) -> dict[str, Any]:
         return _tool_text_result("Stop requested. The local Codex child will be terminated; no provider retry will follow.")
     return _tool_text_result("Task is no longer running.")
 
-def _launch_task_from_panel(arguments: Any, request_id: Any) -> dict[str, Any]:
-    with TASK_LIFECYCLE_LOCK:
-        return _launch_task_from_panel_locked(arguments, request_id)
-
-
-def _launch_task_from_panel_locked(arguments: Any, request_id: Any) -> dict[str, Any]:
-    if not isinstance(arguments, dict):
-        return _tool_text_result("arguments must be an object", True)
-    task = arguments.get("task")
-    cwd = arguments.get("cwd") or str(WORKSPACE_PATH)
-    group = arguments.get("group", "auto")
-    route_choice = arguments.get("route_choice")
-    profile_id = arguments.get("profile_id")
-    role = arguments.get("role")
-    save_profile = arguments.get("save_profile", False)
-    master_recall = arguments.get("master_recall", True)
-    if not isinstance(task, str) or not task.strip():
-        return _tool_text_result("task must be a non-empty string", True)
-    try:
-        cwd = str(_validated_workspace_cwd(cwd))
-    except (OSError, ValueError) as exc:
-        return _tool_text_result(str(exc), True)
-    if not isinstance(group, str) or (route_choice is not None and not isinstance(route_choice, str)):
-        return _tool_text_result("group and route_choice must be text", True)
-    if isinstance(route_choice, str):
-        route_choice = route_choice.lower()
-    if type(save_profile) is not bool:
-        return _tool_text_result("save_profile must be a boolean", True)
-    if type(master_recall) is not bool:
-        return _tool_text_result("master_recall must be a boolean", True)
-    if save_profile and profile_id is not None:
-        return _tool_text_result("Choose an existing profile or save a new profile, not both.", True)
-    if save_profile and (not isinstance(role, str) or role not in ROLE_GUIDANCE):
-        return _tool_text_result("Choose a valid subagent role when saving a new profile.", True)
-    if not save_profile and ((role is None) == (profile_id is None)):
-        return _tool_text_result("Choose exactly one subagent role or saved profile.", True)
-
-    if save_profile:
-        route_group = arguments.get("route_group", "")
-        allow_mcp_tools = arguments.get("allow_mcp_tools", True)
-        allow_skills = arguments.get("allow_skills", True)
-        if not _valid_profile_route_group(route_group) or (
-            route_group and _route_for_profile_group(route_group) is None
-        ):
-            return _tool_text_result("Choose a configured route group or Default.", True)
-        if type(allow_mcp_tools) is not bool or type(allow_skills) is not bool:
-            return _tool_text_result("allow_mcp_tools and allow_skills must be booleans.", True)
-        profile = {"routeGroup": route_group, "role": role, "builtin": False}
-    elif profile_id is not None:
-        profile = _find_profile(profile_id)
-        if profile is None:
-            return _tool_text_result("The selected subagent profile was not found.", True)
-        role = profile["role"]
-    else:
-        if not isinstance(role, str) or role not in ROLE_GUIDANCE:
-            return _tool_text_result("Choose a valid subagent role.", True)
-        profile_id = f"builtin-{role}"
-        profile = _find_profile(profile_id)
-        if profile is None:
-            return _tool_text_result("The selected built-in profile is unavailable.", True)
-
-    try:
-        group, route_choice = _resolve_profile_routing(profile, group, route_choice)
-        route_choice = _resolve_route_choice(group, route_choice)
-        route_groups(group, route_choice)
-        model_for_group(group, arguments.get("model"), route_choice)
-    except ValueError as exc:
-        return _tool_text_result(str(exc), True)
-    missing = missing_credentials(group, API_KEYS, route_choice)
-    if missing:
-        return _tool_text_result(
-            "No provider request was sent. Missing local credentials: " + ", ".join(missing) + ". "
-            "Run set-provider-keys.ps1 locally, then restart Codex.",
-            True,
-        )
-
-    if save_profile:
-        profile_result = _profiles_action({
-            "action": "create",
-            "name": arguments.get("profile_name"),
-            "role": role,
-            "instructions": arguments.get("profile_instructions"),
-            "codex_callable": arguments.get("codex_callable", False),
-            "route_group": route_group,
-            "allow_mcp_tools": allow_mcp_tools,
-            "allow_skills": allow_skills,
-        })
-        if profile_result.get("isError"):
-            return profile_result
-        profile_id = (profile_result.get("structuredContent") or {}).get("profile", {}).get("id")
-        profile = _find_profile(profile_id)
-        if profile is None:
-            return _tool_text_result("The new subagent profile could not be loaded.", True)
-
-    profile_instructions = "" if profile.get("builtin") else profile.get("instructions", "")
-    profile_name = profile.get("name", ROLE_LABELS.get(role, role))
-    task_arguments = {
-        **arguments,
-        "role": role,
-        "task": task.strip(),
-        "group": group,
-        "route_choice": route_choice,
-        "profileId": profile_id or f"builtin-{role}",
-        "profileName": profile_name,
-        "profileInstructions": profile_instructions,
-        "initiator": "user",
-        "master_recall": master_recall,
-        "allowMcpTools": profile.get("allowMcpTools", True),
-        "allowSkills": profile.get("allowSkills", True),
-    }
-    if STATE_LOAD_ERROR is not None:
-        return _tool_text_result("Task was not started because local result storage could not be read.", True)
-    activity_id = uuid.uuid4().hex
-    task_arguments["activityId"] = activity_id
-    now = _activity_time()
-    pending = {
-        "activityId": activity_id,
-        "role": role,
-        "status": "queued",
-        "task": _safe_activity_text(task_arguments["task"]),
-        "group": group,
-        "model": model_for_group(group, arguments.get("model"), route_choice),
-        "startedAt": now,
-        "updatedAt": now,
-        "result": "",
-    }
-    try:
-        _add_pending_results([pending])
-    except (OSError, ValueError, TypeError) as exc:
-        return _tool_text_result(f"Task was not started: {type(exc).__name__}: {exc}", True)
-    task_arguments["model"] = pending["model"]
-    _new_activity(role, task_arguments, activity_id=activity_id, status="queued")
-    cancel_event = threading.Event()
-    with ACTIVITY_LOCK:
-        CANCEL_EVENTS[activity_id] = cancel_event
-    submitted = _submit_bounded(
-        PARALLEL_WORKERS, PARALLEL_WORKER_CAPACITY,
-        _execute_subagent_call,
-        role, task_arguments, request_id, None, "user", task_arguments["profileId"],
-        activity_id=activity_id, cancel_event=cancel_event, pending_result=True,
-    )
-    if not submitted:
-        failure = _tool_text_result("Worker capacity is full; task was not started.", True)
-        _set_activity_state(activity_id, status="failed")
-        _record_pending_result(activity_id, "failed", failure)
-        with ACTIVITY_LOCK:
-            CANCEL_EVENTS.pop(activity_id, None)
-        return {
-            "content": [{"type": "text", "text": "Worker capacity is full. Read the result by activity_id."}],
-            "structuredContent": {"activity_id": activity_id, "role": role, "status": "failed"},
-            "isError": False,
-        }
-    return {
-        "content": [{"type": "text", "text": "Task accepted. Poll laowu_task_result with action=get and this activity_id."}],
-        "structuredContent": {"activity_id": activity_id, "role": role, "status": "queued"},
-        "isError": False,
-    }
-
-
 def _continue_activity(arguments: Any, *, asynchronous: bool = False) -> dict[str, Any]:
     if SERVER_STOPPING.is_set():
         return _tool_text_result("Dispatcher is shutting down; continuation was not started.", True)
@@ -4786,9 +4551,6 @@ def _handle_tool_call(request_id: Any, params: dict[str, Any]) -> None:
     if name == "laowu_task_result":
         _write_response(request_id, result=_pending_result_action(arguments))
         return
-    if name == "laowu_launch_task":
-        _write_response(request_id, result=_launch_task_from_panel(arguments, request_id))
-        return
     if not isinstance(arguments, dict):
         _write_response(request_id, result=_tool_text_result("arguments must be an object", True))
         return
@@ -4871,13 +4633,12 @@ def serve() -> None:
                     "instructions": (
                         "Use laowu_callable_profiles to discover subagent profiles enabled for Codex, then call run_subagent_profile; "
                         "built-in run_subagent_* calls also require the global Codex permission and that role's permission. "
-                        "Manual launches from the panel are user initiated. Retain/Delete actions only affect local task records. "
                         "Dispatch returns activity IDs immediately. Poll laowu_task_result; read every result page using next_offset until null, then acknowledge. Never restart a task just because a tool call timed out. After reading and acknowledging a subagent result, compare it with the original request and acceptance criteria. If it is incomplete, incorrect, or needs a concrete requested change, and masterRecallAvailable is true, call laowu_continue_task on that same activity_id with actionable feedback, then poll and review the continuation. Do not create a duplicate task for ordinary corrections; do not continue for optional polish when the request is already satisfied. Stop and report blockers or repeated failure. "
                         "Use the role-specific run_subagent_scout, run_subagent_reviewer, run_subagent_tester, run_subagent_coder, and run_subagent_free "
                         "tools for individual subagent tasks. Use run_subagents_parallel for up to eight independent "
                         "tasks that should start together; it returns activity IDs immediately. Use laowu_task_result "
                         "to poll each ID and read the final result, then acknowledge after using it. "
-                        "Provider executions and native fallback tasks share the user-configurable one-to-eight concurrency limit and an eight-worker ceiling. "
+                        "Provider executions and native fallback tasks use the shared eight-worker execution pool; excess tasks wait in its queue. "
                         "The legacy run_subagent_task tool remains available. Use cancel_subagent_task only when the user asks "
                         "to stop a running task. "
                         "Use a selected subagent profile's saved route group when present. If one route is enabled, the server chooses it automatically; "

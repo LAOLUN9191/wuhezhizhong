@@ -1479,16 +1479,12 @@ class DispatcherTests(unittest.TestCase):
 
         parallel = next(schema for schema in schemas if schema["name"] == "run_subagents_parallel")
         self.assertNotIn("interactive", parallel["inputSchema"]["properties"]["tasks"]["items"]["properties"])
-        panel_launch = next(schema for schema in server._activity_tool_schemas() if schema["name"] == "laowu_launch_task")
-        self.assertNotIn("interactive", panel_launch["inputSchema"]["properties"])
 
 
 class PanelLaunchTests(unittest.TestCase):
     def test_launch_schema_and_continue_tool_contract(self):
         schemas = {item["name"]: item for item in server._activity_tool_schemas()}
-        launch = schemas["laowu_launch_task"]["inputSchema"]
-        self.assertIs(launch["properties"]["master_recall"]["type"], "boolean")
-        self.assertTrue(launch["properties"]["master_recall"]["default"])
+        self.assertNotIn("laowu_launch_task", schemas)
         continuation = schemas["laowu_continue_task"]["inputSchema"]
         self.assertEqual(continuation["required"], ["activity_id", "message"])
         role_schemas = {item["name"]: item for item in server._role_tool_schemas()}
@@ -1621,32 +1617,6 @@ class PanelLaunchTests(unittest.TestCase):
         self.assertTrue(server.ACTIVITIES[activity_id]["masterRecallEnabled"])
         self.assertIn("OSError", result["content"][0]["text"])
 
-    def test_launch_creates_a_new_activity_without_replacing_the_source(self):
-        source_id = "a" * 32
-        source = {"id": source_id, "role": "scout", "status": "completed", "task": "original"}
-        with (
-            patch.object(server, "ACTIVITIES", {source_id: source}),
-            patch.object(server, "ACTIVITY_ORDER", [source_id]),
-            patch.object(server, "CANCEL_EVENTS", {}),
-            patch("server._resolve_profile_routing", return_value=("auto", "route_a")),
-            patch("server._resolve_route_choice", return_value="route_a"),
-            patch("server.route_groups", return_value=["route_a_group_1"]),
-            patch("server.model_for_group", return_value="fixture-model"),
-            patch("server.missing_credentials", return_value=[]),
-            patch("server._add_pending_results", return_value=[]),
-            patch("server._submit_bounded", return_value=True),
-            patch("server._log_dispatch_event"),
-        ):
-            result = server._launch_task_from_panel({
-                "role": "scout", "task": "repeat original", "cwd": str(Path(__file__).parent), "group": "auto",
-            }, "request-rerun")
-
-            new_id = result["structuredContent"]["activity_id"]
-            self.assertNotEqual(new_id, source_id)
-            self.assertEqual(server.ACTIVITIES[source_id], source)
-            self.assertEqual(server.ACTIVITIES[new_id]["task"], "repeat original")
-            self.assertEqual(server.ACTIVITIES[new_id]["status"], "queued")
-            self.assertTrue(server.ACTIVITIES[new_id]["masterRecallEnabled"])
 
 
 class ProfileCapabilityTests(unittest.TestCase):
@@ -1709,6 +1679,7 @@ class ProfileCapabilityTests(unittest.TestCase):
     def test_state_load_persists_removal_of_legacy_role_limits(self):
         state = server._default_state()
         state["builtinConcurrency"] = {"reviewer": 1}
+        state["subagentConcurrency"] = 2
         with TemporaryDirectory(prefix=".test-role-limit-", dir=Path(__file__).resolve().parents[2]) as temp_dir:
             state_path = Path(temp_dir) / "state.json"
             legacy_path = Path(temp_dir) / "legacy-state.json"
@@ -1720,6 +1691,8 @@ class ProfileCapabilityTests(unittest.TestCase):
             persisted = json.loads(state_path.read_text(encoding="utf-8"))
         self.assertNotIn("builtinConcurrency", normalized)
         self.assertNotIn("builtinConcurrency", persisted)
+        self.assertNotIn("subagentConcurrency", normalized)
+        self.assertNotIn("subagentConcurrency", persisted)
 
     def test_eight_parallel_tasks_of_one_role_enter_shared_executor_slots(self):
         started = threading.Barrier(9)
@@ -1739,63 +1712,26 @@ class ProfileCapabilityTests(unittest.TestCase):
         self.assertEqual(server.PARALLEL_WORKERS._max_workers, 8)
         self.assertEqual(server.PROVIDER_SLOTS._initial_value, 8)
 
-    def test_builtin_role_concurrency_is_removed_from_profiles_schema(self):
+    def test_profiles_schema_has_no_concurrency_setting(self):
         schema = next(item for item in server._activity_tool_schemas() if item["name"] == "laowu_profiles")
-        self.assertIn("concurrency", schema["inputSchema"]["properties"]["action"]["enum"])
-        self.assertEqual(schema["inputSchema"]["properties"]["concurrency"], {"type": "integer", "minimum": 1, "maximum": 8})
+        self.assertNotIn("concurrency", schema["inputSchema"]["properties"]["action"]["enum"])
+        self.assertNotIn("concurrency", schema["inputSchema"]["properties"])
         self.assertNotIn("maxConcurrent", server._builtin_profile("reviewer"))
 
-    def test_subagent_concurrency_is_persisted_and_returned_in_profile_snapshot(self):
-        persisted = {}
-        with patch.multiple(
-            server, PERSISTED_STATE=server._default_state(), STATE_LOAD_ERROR=None,
-            save_state=lambda state: persisted.update(state),
-        ):
-            result = server._profiles_action({"action": "concurrency", "concurrency": 3})
-        self.assertFalse(result.get("isError"))
-        self.assertEqual(result["structuredContent"]["subagentConcurrency"], 3)
-        self.assertEqual(persisted["subagentConcurrency"], 3)
-
-    def test_subagent_concurrency_rejects_out_of_range_values(self):
-        for value in (0, 9, True, 2.5, "3"):
-            with self.subTest(value=value):
-                result = server._profiles_action({"action": "concurrency", "concurrency": value})
-                self.assertTrue(result.get("isError"))
-
-    def test_provider_execution_gate_respects_saved_concurrency_limit(self):
-        with patch.object(server, "PERSISTED_STATE", {**server._default_state(), "subagentConcurrency": 1}), patch.object(
-            server, "ACTIVE_SUBAGENT_CALLS", 0,
-        ):
-            self.assertTrue(server._acquire_subagent_slot(threading.Event()))
-            acquired = threading.Event()
-
-            def wait_for_slot():
-                if server._acquire_subagent_slot(threading.Event()):
-                    acquired.set()
-                    server._release_subagent_slot()
-
-            worker = threading.Thread(target=wait_for_slot)
-            worker.start()
-            self.assertFalse(acquired.wait(0.05))
-            server._release_subagent_slot()
-            self.assertTrue(acquired.wait(1))
-            worker.join(timeout=1)
-
-    def test_external_provider_and_native_fallback_both_use_the_concurrency_gate(self):
+    def test_provider_and_native_fallback_use_fixed_worker_pool_without_saved_gate(self):
         provider_id = "route_a_group_1"
         with (
             patch.dict(server.API_KEYS, {server.KEY_NAMES[provider_id]: "fixture-key"}),
-            patch("server._acquire_subagent_slot", return_value=False),
-            patch("server._run_provider_with_slot") as provider_run,
-            patch("server._run_native_codex_fallback_with_slot") as native_run,
+            patch("server._run_provider_with_slot", return_value=(0, "provider", "")) as provider_run,
+            patch("server._run_native_codex_fallback_with_slot", return_value=(0, "native", "")) as native_run,
         ):
             provider_result = server._run_provider(provider_id, "reviewer", "task", str(Path.cwd()), "model")
             native_result = server._run_native_codex_fallback("reviewer", "task", str(Path.cwd()), [], threading.Event())
 
-        self.assertEqual(provider_result[0], 130)
-        self.assertEqual(native_result[0], 130)
-        provider_run.assert_not_called()
-        native_run.assert_not_called()
+        self.assertEqual(provider_result, (0, "provider", ""))
+        self.assertEqual(native_result, (0, "native", ""))
+        provider_run.assert_called_once()
+        native_run.assert_called_once()
 
     def test_profiles_action_persists_capability_choices(self):
         with TemporaryDirectory(prefix=".test-profile-save-", dir=Path(__file__).resolve().parents[2]) as temp_dir:
@@ -1836,11 +1772,9 @@ class ProfileCapabilityTests(unittest.TestCase):
 
     def test_profile_capability_fields_are_declared_in_tool_schemas(self):
         profiles = next(item for item in server._activity_tool_schemas() if item["name"] == "laowu_profiles")
-        launch = next(item for item in server._activity_tool_schemas() if item["name"] == "laowu_launch_task")
         self.assertIn("builtin_capabilities", profiles["inputSchema"]["properties"]["action"]["enum"])
         for field in ("allow_mcp_tools", "allow_skills"):
             self.assertEqual(profiles["inputSchema"]["properties"][field], {"type": "boolean"})
-            self.assertEqual(launch["inputSchema"]["properties"][field], {"type": "boolean"})
 
 
 class RouteResetTests(unittest.TestCase):

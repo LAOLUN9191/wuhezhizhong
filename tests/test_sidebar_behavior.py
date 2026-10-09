@@ -36,15 +36,10 @@ class SidebarBehaviorTests(unittest.TestCase):
         self.assertIn("未命名分组", result)
         self.assertNotIn("分组 7", result)
 
-    def test_profiles_view_has_one_to_eight_global_concurrency_selector(self):
-        function = self.function("  function profileConcurrencyMarkup()", "  function profileEditorMarkup()")
-        result = self.node('const profileSnapshot={subagentConcurrency:3};const esc=x=>String(x);' + function + 'process.stdout.write(JSON.stringify(profileConcurrencyMarkup()));')
-        self.assertIn('id="subagent-concurrency"', result)
-        self.assertIn('value="1"', result)
-        self.assertIn('value="8"', result)
-        self.assertIn('value="3" selected', result)
-        self.assertIn('action:"concurrency",concurrency:value', SOURCE)
-        self.assertIn('新任务最多同时运行 ${value} 个代理', SOURCE)
+    def test_profiles_view_has_no_global_concurrency_control(self):
+        self.assertNotIn('id="subagent-concurrency"', SOURCE)
+        self.assertNotIn('action:"concurrency"', SOURCE)
+        self.assertNotIn('同时运行代理数', SOURCE)
 
     def test_result_reader_fetches_every_page_in_order(self):
         function = self.function("  async function readTaskResult(", "  function profileEditorMarkup()") if "  async function readTaskResult(" in SOURCE else "async function readTaskResult(id,page){return page}"
@@ -73,10 +68,9 @@ class SidebarBehaviorTests(unittest.TestCase):
             + 'const first=loadLanguage(storage);const saved=saveLanguage(storage,"en");'
             + 'const route=translateUiText("仅启用“默认”，请选择 Auto 或具体分组。","en");'
             + 'const duration=translateUiText("2 分 5 秒","en");const unknown=translateUiText("My custom group","en");'
-            + 'const concurrency=translateUiText("已保存；新任务最多同时运行 3 个代理。","en");'
-            + 'process.stdout.write(JSON.stringify({first,saved,stored:storage.value,en:translateUiText("设置","en"),zh:translateUiText("Settings","zh-CN"),route,duration,concurrency,unknown}));'
+            + 'process.stdout.write(JSON.stringify({first,saved,stored:storage.value,en:translateUiText("设置","en"),zh:translateUiText("Settings","zh-CN"),route,duration,unknown}));'
         )
-        self.assertEqual(result, {"first": "zh-CN", "saved": "en", "stored": "en", "en": "Settings", "zh": "设置", "route": "Only “默认” is enabled. Choose Auto or a specific group.", "duration": "2m 5s", "concurrency": "Saved. New tasks can run up to 3 agents at once.", "unknown": "My custom group"})
+        self.assertEqual(result, {"first": "zh-CN", "saved": "en", "stored": "en", "en": "Settings", "zh": "设置", "route": "Only “默认” is enabled. Choose Auto or a specific group.", "duration": "2m 5s", "unknown": "My custom group"})
         self.assertIn('id="language-select"', SOURCE)
         self.assertIn('"laowu-language"', SOURCE)
         self.assertIn('document.documentElement.lang!==language', SOURCE)
