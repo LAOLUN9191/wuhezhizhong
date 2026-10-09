@@ -28,5 +28,21 @@ jobs:
           node-version: '24'
       - name: Run isolated offline suites
         run: python -B tools/run_tests.py
+      - name: Diagnose PowerShell startup after a failure
+        if: failure()
+        shell: python
+        run: |
+          import os, subprocess, sys
+          sys.path.insert(0, "tools")
+          from run_tests import _safe_test_environment
+          script = "Write-Output 'startup'; Import-Module (Join-Path $PSHOME 'Modules/Microsoft.PowerShell.Security/Microsoft.PowerShell.Security.psd1') -ErrorAction Stop; Write-Output 'security-module'; $m=[Threading.Mutex]::new($false,'Local/LaowuCIDiagnostic'); Write-Output 'mutex-created'; $m.Dispose()"
+          minimal = _safe_test_environment(os.environ)
+          profile = {**minimal, **{k:v for k,v in os.environ.items() if k.upper() in {'USERPROFILE','APPDATA','LOCALAPPDATA'}}}
+          for label, environment in [('inherited', dict(os.environ)), ('isolated', minimal), ('isolated-with-profile', profile)]:
+              try:
+                  result = subprocess.run(['powershell.exe','-NoProfile','-NonInteractive','-Command',script], env=environment, input='', capture_output=True, text=True, timeout=10)
+                  print(label, 'exit', result.returncode, 'checkpoints', repr(result.stdout), 'stderr', repr(result.stderr[:600]))
+              except subprocess.TimeoutExpired as error:
+                  print(label, 'timed out', 'checkpoints', repr(error.stdout), 'stderr', repr(error.stderr))
       - name: Check committed release inputs
         run: python -B tools/build_release.py --ref HEAD --output .release/ci-source.zip
