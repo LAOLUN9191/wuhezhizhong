@@ -82,7 +82,7 @@ codex --version
    ```
 
    `command` 也可以填 Python 可执行文件的绝对路径。Codex CLI、桌面应用和 IDE 扩展共用此 MCP 配置；可在 Codex 中查看 MCP 服务状态，或运行 `codex mcp list`。更多 MCP 配置选项见 [Codex MCP 文档](https://learn.chatgpt.com/docs/extend/mcp)。
-5. 重启 Codex，使 MCP 服务加载当前配置。服务运行后，从 Codex 打开“乌合之众”活动面板。
+5. 重启 Codex，使 MCP 服务加载当前配置。服务运行后，从 Codex 打开一次“乌合之众”活动面板。部分宿主每次调用面板入口都会新开标签；后续查看状态请使用 `laowu_activity_snapshot` 或 `laowu_task_result`，不要重复调用入口。
 6. 在设置页添加或启用路线分组，填写模型 API 地址和模型 ID，再保存 API 密钥。面板会调用本地 PowerShell helper，将密钥加密保存到 `keys.xml`；保存后当前服务进程可立即使用新密钥。
 7. 对支持标准 `/models` 接口的服务，可以在面板查询模型列表；也可以手动填写模型 ID。查询模型列表不等于验证模型一定支持 Codex 执行所需的工具调用能力。
 

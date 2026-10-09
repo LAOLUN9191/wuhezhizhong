@@ -2982,7 +2982,8 @@ def _activity_tool_schemas() -> list[dict[str, Any]]:
             "name": "open_laowu_activity",
             "title": "乌合之众",
             "description": (
-                "Open the laowu panel to inspect activity and local platform configuration. Reuse the same panel."
+                "Open the laowu panel once per conversation. Some hosts open a new tab on every call. "
+                "Do not call again to refresh; use laowu_activity_snapshot or laowu_task_result for later status reads."
             ),
             "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
             "_meta": {
@@ -4828,8 +4829,9 @@ def serve() -> None:
                         "when multiple routes are enabled, Auto requires route_choice unless the profile has a saved route. "
                         "Manual group IDs are listed in the current tool schema; a named group calls only that provider. "
                         "Auto follows the chosen route's saved mode: sequentially tries enabled Auto groups in order, or uses only the first enabled Auto group. Each attempt uses that group's configured model and API address. "
-                        "Open 乌合之众 活动 from the app entrypoint to inspect task status and visible messages. "
-                        "Reuse the same panel and keep retries within the selected route. "
+                        "If needed, open 乌合之众 活动 from the app entrypoint once per conversation; some hosts open a new tab on every call. "
+                        "Do not call the entrypoint again to refresh. Use laowu_activity_snapshot or laowu_task_result for later status reads. "
+                        "Keep retries within the selected route. "
                         "Only retryable errors advance within a route. After eligible failures are exhausted, a route may use one native Codex fallback only when its local setting allows it. Never cross routes "
                         "or use default automatically. "
                         "Each provider group uses its configured model ID and API address. Use default only when the user explicitly "
