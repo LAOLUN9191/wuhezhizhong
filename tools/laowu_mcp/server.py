@@ -29,8 +29,8 @@ SERVER_NAME = "乌合之众"
 TOOL_NAME = "run_subagent_task"
 USER_CONFIG_PATH = Path(os.environ.get("LAOWU_USER_CONFIG_PATH", Path(__file__).with_name("user_config.json")))
 DEFAULT_PROVIDERS = {
-    **{f"route_a_group_{n}": {"model_provider": f"provider_a_group_{n}", "key_name": f"PROVIDER_A_GROUP_{n}_API_KEY", "model": "", "label": ""} for n in range(1, 5)},
-    **{f"route_b_group_{n}": {"model_provider": f"provider_b_group_{n}", "key_name": f"PROVIDER_B_GROUP_{n}_API_KEY", "model": "", "label": ""} for n in range(1, 4)},
+    **{f"route_a_group_{n}": {"model_provider": f"provider_a_group_{n}", "key_name": f"PROVIDER_A_GROUP_{n}_API_KEY", "model": "", "label": "路线 A 默认分组" if n == 1 else f"路线 A 分组 {n}"} for n in range(1, 5)},
+    **{f"route_b_group_{n}": {"model_provider": f"provider_b_group_{n}", "key_name": f"PROVIDER_B_GROUP_{n}_API_KEY", "model": "", "label": "路线 B 默认分组" if n == 1 else f"路线 B 分组 {n}"} for n in range(1, 4)},
 }
 
 
@@ -124,6 +124,17 @@ PROVIDERS = {name: dict(value) for name, value in {**DEFAULT_PROVIDERS, **_migra
 PROVIDER_MODELS = {name: str(value.get("model") or "") for name, value in PROVIDERS.items()}
 PROVIDER_LABELS = {name: str(value.get("label") or "") for name, value in PROVIDERS.items()}
 PROVIDER_ORDINALS = {name: index + 1 for index, name in enumerate(PROVIDERS)}
+
+
+def _default_provider_label(provider_id: str) -> str:
+    match = re.fullmatch(r"route_([ab])_group_(\d+)", provider_id)
+    if not match:
+        return ""
+    route_name = f"路线 {match.group(1).upper()}"
+    group_number = int(match.group(2))
+    return f"{route_name} 默认分组" if group_number == 1 else f"{route_name} 分组 {group_number}"
+
+
 PROVIDER_IDS = {name: str(value.get("model_provider") or name) for name, value in PROVIDERS.items()}
 KEY_NAMES = {name: str(value.get("key_name") or "") for name, value in PROVIDERS.items()}
 MODEL = PROVIDER_MODELS.get("route_a_group_1", "")
@@ -557,7 +568,7 @@ def model_for_provider(provider: str, requested_model: str) -> str:
 
 def _provider_display_label(provider: str) -> str:
     label = PROVIDER_LABELS.get(provider, "").strip()
-    return label or f"分组 {PROVIDER_ORDINALS.get(provider, 1)}"
+    return label or _default_provider_label(provider) or f"分组 {PROVIDER_ORDINALS.get(provider, 1)}"
 
 
 def provider_label(provider: str) -> str:
@@ -1037,6 +1048,13 @@ def _append_activity_event(
         _persist_retained_activity(activity_id)
 
 
+def _append_provider_failure_progress(activity_id: str | None, label: str, reason: str) -> None:
+    if activity_id:
+        _append_activity_event(
+            activity_id, "progress", f"失败原因：{reason}", f"‘{label}’失败",
+        )
+
+
 def _append_visible_activity_events(activity_id: str, stdout: str) -> None:
     seen_event_ids = {
         event.get("eventId") for event in ACTIVITIES.get(activity_id, {}).get("events", [])
@@ -1322,7 +1340,7 @@ def _profile_route_group_options(route_settings: list[dict[str, Any]] | None = N
             if not group["enabled"]:
                 continue
             provider_id = group["provider_id"]
-            label = PROVIDER_LABELS.get(provider_id, "").strip() or f"分组 {PROVIDER_ORDINALS.get(provider_id, 1)}"
+            label = PROVIDER_LABELS.get(provider_id, "").strip() or _default_provider_label(provider_id) or f"分组 {PROVIDER_ORDINALS.get(provider_id, 1)}"
             options.append({
                 "value": _manual_group_id(route["id"], provider_id),
                 "label": f"{route['name']} · {label}",
@@ -2645,6 +2663,7 @@ def run_subagent_task(
             except Exception:
                 pass
         if stderr.startswith("Local process cleanup failed:"):
+            _append_provider_failure_progress(activity_id, label, _safe_excerpt(stderr))
             return _tool_text_result(
                 f"{provider}: {stderr} Automatic failover and Codex fallback were stopped "
                 "to avoid overlapping work from a process that may still be running.", True,
@@ -2681,6 +2700,9 @@ def run_subagent_task(
                         _append_activity_event(activity_id, "assistant", answer)
                 return _tool_text_result(f"Provider group used: {label}{model_note}\n\n{answer}")
             failures.append(f"{provider}: child exited successfully without a final response")
+            _append_provider_failure_progress(
+                activity_id, label, "子代理进程正常退出，但没有返回最终答复。",
+            )
             if saw_provider_timeout:
                 return _tool_text_result(
                     "A provider timeout occurred. No other provider group or native Codex fallback was started.\n"
@@ -2714,6 +2736,7 @@ def run_subagent_task(
         if partial_answer:
             detail += "\nPartial assistant output captured before failure:\n" + _safe_excerpt(partial_answer)
         failures.append(f"{provider}: {reason}; {detail}")
+        _append_provider_failure_progress(activity_id, label, f"{reason}；{detail}")
         if saw_provider_timeout:
             return _tool_text_result(
                 "A provider timeout occurred. No other provider group or native Codex fallback was started.\n"
@@ -3261,19 +3284,36 @@ def _activity_result() -> dict[str, Any]:
     }
 
 
+def _route_group_labels(route: dict[str, Any]) -> dict[str, str]:
+    labels = {}
+    custom_number = 0
+    for group in route["groups"]:
+        provider_id = group["provider_id"]
+        label = PROVIDER_LABELS.get(provider_id, "").strip() or _default_provider_label(provider_id)
+        if provider_id not in DEFAULT_PROVIDERS:
+            custom_number += 1
+            if not label or re.fullmatch(r"新分组 \d+", label):
+                label = f"新分组 {custom_number}"
+        if not label:
+            label = f"分组 {PROVIDER_ORDINALS.get(provider_id, 1)}"
+        labels[provider_id] = label
+    return labels
+
+
 def _configuration_snapshot() -> dict[str, Any]:
     platforms = []
+    route_labels: dict[str, str] = {}
     for platform in ROUTE_SETTINGS:
         groups = []
         auto_labels = []
+        route_group_labels = _route_group_labels(platform)
         for group in platform["groups"]:
             provider_id = group["provider_id"]
             key_name = KEY_NAMES[provider_id]
             key = API_KEYS.get(key_name, "")
-            label = _safe_activity_text(
-                PROVIDER_LABELS.get(provider_id, ""), 80, redact_configured_terms=False,
-            )
+            label = _safe_activity_text(route_group_labels[provider_id], 80, redact_configured_terms=False)
             display_label = label or f"分组 {PROVIDER_ORDINALS.get(provider_id, 1)}"
+            route_labels[provider_id] = display_label
             model = PROVIDER_MODELS.get(provider_id, "")
             if group["auto"] and group["enabled"]:
                 auto_labels.append(display_label)
@@ -3303,7 +3343,8 @@ def _configuration_snapshot() -> dict[str, Any]:
     for provider_id, provider in PROVIDERS.items():
         key = API_KEYS.get(KEY_NAMES.get(provider_id, ""), "")
         label = _safe_activity_text(
-            PROVIDER_LABELS.get(provider_id, ""), 80, redact_configured_terms=False,
+            route_labels.get(provider_id, PROVIDER_LABELS.get(provider_id, "") or _default_provider_label(provider_id)),
+            80, redact_configured_terms=False,
         )
         available_groups.append({
             "providerId": provider_id,
@@ -3352,7 +3393,11 @@ def _add_group(route_id: Any) -> dict[str, Any]:
             key_name = f"LAOWU_{uuid.uuid4().hex.upper()}_API_KEY"
             if key_name not in reserved_keys:
                 break
-        label = f"新分组 {max(PROVIDER_ORDINALS.values(), default=0) + 1}"
+        existing_labels = set(_route_group_labels(route).values())
+        custom_number = 1
+        while f"新分组 {custom_number}" in existing_labels:
+            custom_number += 1
+        label = f"新分组 {custom_number}"
         provider = {"model_provider": model_provider, "key_name": key_name, "model": "", "label": label, "base_url": ""}
         routes = [{**item, "groups": [dict(group) for group in item["groups"]]} for item in routes]
         selected = next(item for item in routes if item["id"] == route_id)
@@ -3721,7 +3766,17 @@ def _query_models(provider_id: Any, base_url: Any, api_key_override: Any = None)
             return _tool_text_result("The model list response is too large.", True)
         document = json.loads(raw.decode("utf-8-sig"))
     except urllib.error.HTTPError as exc:
-        return _tool_text_result(f"Model query failed with HTTP {exc.code}.", True)
+        messages = {
+            401: "模型查询失败（HTTP 401）：服务端未接受此 API 密钥。请检查密钥是否正确、有效并已保存；也可以手动填写模型 ID。",
+            403: "模型查询失败（HTTP 403）：服务端拒绝了访问。请检查密钥权限、账号或套餐访问权，以及 IP 白名单；若服务不开放模型列表，也可以手动填写模型 ID。",
+            404: "模型查询失败（HTTP 404）：此 API 地址没有提供模型列表接口。请检查 API 地址，或手动填写模型 ID。",
+            429: "模型查询失败（HTTP 429）：请求过于频繁或额度受限。请稍后重试，或手动填写模型 ID。",
+        }
+        message = messages.get(
+            exc.code,
+            f"模型查询失败（HTTP {exc.code}）：服务端未能完成请求。请检查 API 地址或访问权限，也可以手动填写模型 ID。",
+        )
+        return _tool_text_result(message, True)
     except (urllib.error.URLError, http.client.HTTPException, TimeoutError, OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
         detail = _safe_excerpt(str(exc))
         return _tool_text_result(

@@ -51,6 +51,7 @@ body{font-size:calc(13px * var(--font-scale,1))}
 .permission-card{display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto auto;align-items:start;gap:5px;padding:11px 12px}.permission-copy{grid-column:1;grid-row:1;text-align:left}.permission-card .permission-control{grid-column:1;grid-row:2;justify-self:start}.permission-card #codex-permission-status{grid-column:1;grid-row:3;text-align:left}.permission-description{margin-top:2px}.appearance-card .appearance-controls{gap:7px;margin:6px 0}.appearance-card .theme-control-wrap{gap:2px}.appearance-card .motion-setting{margin-top:7px;padding-top:6px}@media(max-width:700px){.settings-top-grid{grid-template-columns:minmax(0,1fr)}}
 /* Event detail rows are collapsed by default; the control stays at the far edge of the heading. */
 .entry.tool.event-collapsed .bubble,.entry.progress.event-collapsed .bubble{display:none}
+.entry.progress.failure .event-marker{width:11px;height:2px;margin-top:8px;border:0;border-radius:0;background:var(--yellow)}
 .entry-head .event-toggle{margin-left:0;flex:none;width:24px;height:24px;padding:0;color:var(--button-text,var(--text));font-size:16px;line-height:1}
 .entry-head .event-toggle:focus-visible{outline:2px solid var(--button-text,var(--text));outline-offset:2px}
 .activity-recall-default{margin:0 7px 10px;white-space:nowrap}
@@ -1249,17 +1250,18 @@ body{font-size:calc(13px * var(--font-scale,1))}
       else if(kind==="user"&&title==="补充指令") { title="Codex 调用"; speaker=""; }
       else if(kind==="user"&&title==="回答") { title="用户 调用"; speaker=""; }
       if(kind==="progress"&&title==="状态") title="进度";
-      const isEnd=activity.status==="completed"&&eventIndex===events.length-1&&kind==="progress";
+      const isProviderFailure=kind==="progress"&&title.endsWith("失败");
+      const isEnd=activity.status==="completed"&&eventIndex===events.length-1&&kind==="progress"&&!isProviderFailure;
       if(isEnd) title="结束";
       const time=formatTime(e.time);
       const replyId=`${activity.id}:${e.eventId||e.id||e.time||eventIndex}`;
       const expanded=expandedReplyIds.has(replyId);
       const expandableEvent=kind==="tool"||kind==="progress";
-      const eventExpanded=expandableEvent&&expandedEventIds.has(replyId);
+      const eventExpanded=expandableEvent&&(isProviderFailure||expandedEventIds.has(replyId));
       const replyClass=kind==="assistant"&&!expanded?" reply-collapsed":"";
       const replyButton=kind==="assistant"?`<button type="button" class="reply-toggle" data-reply-id="${esc(replyId)}" hidden>${expanded?"收起":"展开"}</button>`:"";
-      const eventButton=expandableEvent?`<button type="button" class="event-toggle" data-event-toggle="${esc(replyId)}" aria-expanded="${eventExpanded}" aria-label="${eventExpanded?"收起":"展开"}详情" title="${eventExpanded?"收起":"展开"}详情">${eventExpanded?"▾":"▸"}</button>`:"";
-      return `<article class="entry ${esc(kind)}${isEnd?" end":""}${expandableEvent&&!eventExpanded?" event-collapsed":""}" data-event-id="${esc(replyId)}"><div class="event-marker"></div><div class="event-content"><div class="entry-head"><span class="event-type">${esc(title)}</span>${eventButton}${speaker?`<span class="speaker">${esc(speaker)}</span>`:""}<time class="event-time" title="${esc(e.time||"")}">${esc(time)}</time></div><div class="bubble${replyClass}">${esc(e.text||"")}</div>${replyButton}</div></article>`;
+      const eventButton=expandableEvent&&!isProviderFailure?`<button type="button" class="event-toggle" data-event-toggle="${esc(replyId)}" aria-expanded="${eventExpanded}" aria-label="${eventExpanded?"收起":"展开"}详情" title="${eventExpanded?"收起":"展开"}详情">${eventExpanded?"▾":"▸"}</button>`:"";
+      return `<article class="entry ${esc(kind)}${isProviderFailure?" failure":""}${isEnd?" end":""}${expandableEvent&&!eventExpanded?" event-collapsed":""}" data-event-id="${esc(replyId)}"><div class="event-marker"></div><div class="event-content"><div class="entry-head"><span class="event-type">${esc(title)}</span>${eventButton}${speaker?`<span class="speaker">${esc(speaker)}</span>`:""}<time class="event-time" title="${esc(e.time||"")}">${esc(time)}</time></div><div class="bubble${replyClass}">${esc(e.text||"")}</div>${replyButton}</div></article>`;
     }).join(""):null;
     if(eventsChanged&&typeof fullResult==="string")rows+=`<article class="entry assistant"><div class="event-marker"></div><div class="event-content"><div class="entry-head"><span class="event-type">完整结果</span></div><div class="bubble">${esc(fullResult)}</div></div></article>`;
     const stopButton=["queued","running"].includes(activity.status)?`<button class="stop" id="stop-task">停止任务</button>`:"";
