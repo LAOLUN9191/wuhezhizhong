@@ -2,6 +2,7 @@
 AGENTS.md
 .codex/
 .superpowers/
+.worktrees/
 .probe*/
 **/user_config.json
 **/keys.xml
